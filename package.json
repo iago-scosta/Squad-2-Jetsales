@@ -4,7 +4,7 @@
   },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && node server.js",
+    "server": "cd server && node src/app.js",
     "client": "cd client && npm start"
   },
   "dependencies": {
