@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* JetGO Design System — all colors HSL. */
+
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 220 14% 97%;       /* #F5F6F8 — bg-app */
+    --foreground: 220 39% 11%;       /* #111827 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 39% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 39% 11%;
+
+    /* Brand primary (JetSales blue) */
+    --primary: 211 87% 34%;          /* #0B57A4 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 211 88% 30%;
+    --primary-soft: 210 73% 95%;
+
+    /* Brand AI (purple) */
+    --ai: 262 83% 58%;               /* #7C3AED */
+    --ai-foreground: 0 0% 100%;
+    --ai-soft: 262 100% 97%;
+
+    /* Secondary / muted / accent */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 39% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%; /* #6B7280 text-secondary */
+
+    --accent: 210 73% 95%;
+    --accent-foreground: 211 87% 34%;
+
+    /* Status */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 141 79% 92%;
+
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+    --danger-soft: 0 93% 94%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 48 96% 89%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & inputs */
+    --border: 220 13% 91%;            /* border-subtle */
+    --border-default: 220 13% 84%;
+    --input: 220 13% 91%;
+    --ring: 211 87% 34%;
+
+    /* Chat (WhatsApp-like) */
+    --chat-bg: 36 27% 90%;            /* #ECE5DD */
+    --chat-bubble-out: 89 65% 91%;    /* #DCF8C6 */
+
+    /* Canvas node colors */
+    --node-message: 217 91% 60%;      /* #2563EB */
+    --node-menu: 160 84% 39%;         /* #10B981 */
+    --node-condition: 262 83% 58%;    /* #7C3AED */
+    --node-wait: 25 95% 53%;          /* #F97316 */
+    --node-trigger: 160 84% 30%;
+    --node-end: 220 9% 46%;
+
+    /* Radii */
+    --radius: 0.5rem;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 39% 11%;
+    --sidebar-primary: 211 87% 34%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 73% 95%;
+    --sidebar-accent-foreground: 211 87% 34%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 211 87% 34%;
+  }
+
+  .dark {
+    /* Dark mode kept defined but JetGO ships light-first. */
+    --background: 220 39% 8%;
+    --foreground: 0 0% 98%;
+    --card: 220 39% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 220 39% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 211 87% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 220 14% 18%;
+    --muted-foreground: 220 9% 65%;
+    --accent: 220 14% 18%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 14% 18%;
+    --input: 220 14% 18%;
+    --ring: 211 87% 50%;
+    --sidebar-background: 220 39% 11%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 211 87% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 14% 18%;
+    --sidebar-ring: 211 87% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+  }
+}
+
+/* React Flow base styles consumed via @xyflow/react/dist/style.css imported in canvas component */
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border-default));
+    border-radius: 3px;
+  }
+}
