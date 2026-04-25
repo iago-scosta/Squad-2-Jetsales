@@ -1,4 +1,4 @@
-# JetGO — Frontend (Phase 1)
+# JetGO — Frontend
 
 SaaS para criar, editar e publicar chatbots WhatsApp via EvolutionAPI.
 
@@ -75,14 +75,14 @@ src/
   lib/
     api/
       client.ts              # apiFetch (credentials, CSRF, refresh-on-401)
-      auth.ts | chatbots.ts | flows.ts | dashboard.ts
+      auth.ts | chatbots.ts | flows.ts | dashboard.ts | connections.ts | tickets.ts
     hooks/useSession.ts
     stores/canvasStore.ts    # Zustand: undo/redo
     utils/sidebar-cookie.ts
   types/domain.ts            # tipos do backend (TAKEOFF 3.1)
 ```
 
-## Phase 1 — entregue
+## Entregue
 
 - [x] Design tokens HSL (azul JetSales, roxo IA, status, surfaces, nodes do canvas) + Inter
 - [x] AppShell com sidebar colapsável (cookie persistido, drawer mobile)
@@ -90,16 +90,17 @@ src/
 - [x] Dashboard (4 métricas + linha + barras + atividade recente)
 - [x] Chatbots: lista, criar manual, criar com IA, ativar/desativar/duplicar/excluir
 - [x] Editor canvas: 5 tipos de nó, palette drag&drop, painel lateral, undo/redo (Cmd+Z), autosave debounced, validação RN04 antes de publicar
+- [x] `/conexoes` — lista de conexões WhatsApp, criação com QR polling, excluir/reconectar
+- [x] `/tickets` — lista de conversas, filtros (abertas/fechadas/todas), chat estilo WhatsApp, transbordo
+- [x] "Ajustar com IA" overlay
 - [x] TypeScript estrito, zero `any`, zero token em localStorage
 
-## Phase 2 — pendente
+## Pendente
 
-- `/conexoes` (lista + QR polling)
-- `/tickets` (chat estilo WhatsApp + transbordo)
-- "Ajustar com IA" overlay funcional
-- "Testar Fluxo" runner
-- Knowledge base
-- Banner LGPD (RN05) e contingência (RN06)
+- Knowledge base — UI para upload e gestão de documentos
+- "Testar Fluxo" runner — simulador no canvas antes de publicar
+- Banner LGPD (RN05) — banner de cookies/privacidade
+- Contingência (RN06) — UX quando API está fora
 
 ## Regras de negócio implementadas
 
@@ -109,5 +110,5 @@ src/
 | RN02 | TriggerNode `deletable: false`              | OK     |
 | RN03 | Undo/Redo Zustand                           | OK     |
 | RN04 | Validação antes de publicar                 | OK     |
-| RN05 | LGPD                                        | Phase 2|
-| RN06 | Contingência                                | Phase 2|
+| RN05 | LGPD                                        | Pendente |
+| RN06 | Contingência                                | Pendente |
