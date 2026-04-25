@@ -1,70 +1,113 @@
-# Getting Started with Create React App
+# JetGO — Frontend (Phase 1)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+SaaS para criar, editar e publicar chatbots WhatsApp via EvolutionAPI.
 
-## Available Scripts
+> **Stack:** Vite + React 18 + React Router + TypeScript + Tailwind + shadcn/ui + React Flow + TanStack Query + Zustand + Recharts.
 
-In the project directory, you can run:
+## Setup
 
-### `npm start`
+```bash
+# com npm (padrão do monorepo Squad-2-Jetsales)
+npm install
+npm run dev
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+# ou com bun
+bun install
+bun dev
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Quando rodado a partir da raiz do monorepo, use `npm run client` (inicia o Vite via `npm start`).
 
-### `npm test`
+Crie um `.env.local`:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```
+VITE_API_BASE_URL=https://api.jetgo.jetsales.com.br
+```
 
-### `npm run build`
+A API real deve estar acessível com CORS configurado (ver abaixo). Sem ela, todas as telas mostram skeleton → erro com botão "Tentar novamente".
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Auth — contrato com o backend
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+O frontend **nunca** lê, escreve ou decodifica tokens. Toda autenticação é via cookies httpOnly emitidos pelo backend Node. Cada `fetch` usa `credentials: 'include'`.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### O backend DEVE:
 
-### `npm run eject`
+1. **Login** (`POST /auth/login`) — retorna `{ user, organization }` no body e seta:
+   - `Set-Cookie: jetgo_at=<jwt>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=900`
+   - `Set-Cookie: jetgo_rt=<jwt>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth/refresh; Max-Age=604800`
+   - `Set-Cookie: csrf_token=<random>; Secure; SameSite=Lax; Path=/` (não-httpOnly, lido pelo SPA e ecoado em `X-CSRF-Token`)
+2. **Refresh** (`POST /auth/refresh`) — rota servida sob `Path=/api/v1/auth/refresh`. Retorna 200 + novos `Set-Cookie`.
+3. **Logout** (`POST /auth/logout`) — limpa cookies via `Set-Cookie: jetgo_at=; Max-Age=0`.
+4. **Validar `X-CSRF-Token`** em POST/PATCH/DELETE (double-submit).
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### CORS obrigatório
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```
+Access-Control-Allow-Origin: <origem exata do frontend>   # nunca *
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Methods: GET,POST,PATCH,DELETE,OPTIONS
+Access-Control-Allow-Headers: Content-Type, X-CSRF-Token
+Access-Control-Max-Age: 600
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+OPTIONS preflight deve retornar 204.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Domínio recomendado
 
-## Learn More
+Frontend em `app.jetgo.com.br` + backend em `api.jetgo.com.br`, cookies com `Domain=.jetgo.com.br; SameSite=Lax`. Cross-site exige `SameSite=None; Secure`.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Arquitetura
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```
+src/
+  pages/                     # rotas React Router
+    LoginPage.tsx
+    ForgotPasswordPage.tsx
+    DashboardPage.tsx
+    ChatbotsPage.tsx
+    ChatbotEditorPage.tsx    # canvas React Flow
+    NotFound.tsx
+  components/
+    auth/ProtectedRoute.tsx  # gate via useQuery(['session'])
+    layout/                  # AppShell, Sidebar, PageHeader, JetSalesLogo
+    dashboard/               # MetricCard, ChartCard, RecentActivityList
+    chatbot/                 # ChatbotCard + dialogs (manual + IA)
+  lib/
+    api/
+      client.ts              # apiFetch (credentials, CSRF, refresh-on-401)
+      auth.ts | chatbots.ts | flows.ts | dashboard.ts
+    hooks/useSession.ts
+    stores/canvasStore.ts    # Zustand: undo/redo
+    utils/sidebar-cookie.ts
+  types/domain.ts            # tipos do backend (TAKEOFF 3.1)
+```
 
-### Code Splitting
+## Phase 1 — entregue
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- [x] Design tokens HSL (azul JetSales, roxo IA, status, surfaces, nodes do canvas) + Inter
+- [x] AppShell com sidebar colapsável (cookie persistido, drawer mobile)
+- [x] Login (react-hook-form + zod, refresh-on-401 transparente)
+- [x] Dashboard (4 métricas + linha + barras + atividade recente)
+- [x] Chatbots: lista, criar manual, criar com IA, ativar/desativar/duplicar/excluir
+- [x] Editor canvas: 5 tipos de nó, palette drag&drop, painel lateral, undo/redo (Cmd+Z), autosave debounced, validação RN04 antes de publicar
+- [x] TypeScript estrito, zero `any`, zero token em localStorage
 
-### Analyzing the Bundle Size
+## Phase 2 — pendente
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- `/conexoes` (lista + QR polling)
+- `/tickets` (chat estilo WhatsApp + transbordo)
+- "Ajustar com IA" overlay funcional
+- "Testar Fluxo" runner
+- Knowledge base
+- Banner LGPD (RN05) e contingência (RN06)
 
-### Making a Progressive Web App
+## Regras de negócio implementadas
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+| ID   | Regra                                       | Status |
+| ---- | ------------------------------------------- | ------ |
+| RN01 | Nome único (validado pelo backend, 409 → toast) | OK |
+| RN02 | TriggerNode `deletable: false`              | OK     |
+| RN03 | Undo/Redo Zustand                           | OK     |
+| RN04 | Validação antes de publicar                 | OK     |
+| RN05 | LGPD                                        | Phase 2|
+| RN06 | Contingência                                | Phase 2|
