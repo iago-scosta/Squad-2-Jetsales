@@ -1,0 +1,786 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  Background,
+  Controls,
+  MiniMap,
+  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type NodeProps,
+  Handle,
+  Position,
+  useReactFlow,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Clock,
+  GitBranch,
+  Loader2,
+  ListOrdered,
+  MessageSquare,
+  Play,
+  Plus,
+  Save,
+  Sparkles,
+  Trash2,
+  Undo2,
+  Redo2,
+  X,
+  Zap,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCanvasStore } from "@/lib/stores/canvasStore";
+import { flowsApi } from "@/lib/api/flows";
+import { chatbotsApi } from "@/lib/api/chatbots";
+import { ApiError } from "@/lib/api/client";
+import { AdjustWithAIDialog } from "@/components/chatbot/AdjustWithAIDialog";
+import type { FlowEdge, FlowNode, FlowNodeData, FlowNodeType, FlowWithGraph } from "@/types/domain";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+/* ------------------------------- Custom Nodes ------------------------------ */
+
+interface RFNodeData extends Record<string, unknown> {
+  domainType: FlowNodeType;
+  data: FlowNodeData;
+}
+
+function NodeShell({
+  color,
+  icon,
+  label,
+  children,
+  hasError,
+  selected,
+  showSourceHandle = true,
+  showTargetHandle = true,
+}: {
+  color: string;
+  icon: React.ReactNode;
+  label: string;
+  children?: React.ReactNode;
+  hasError?: boolean;
+  selected?: boolean;
+  showSourceHandle?: boolean;
+  showTargetHandle?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "min-w-[220px] rounded-lg border-2 bg-card shadow-card overflow-hidden transition-all",
+        selected ? "border-primary ring-2 ring-primary/20" : "border-border",
+        hasError && "animate-pulse-error border-danger",
+      )}
+    >
+      {showTargetHandle && <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />}
+      <div className="flex items-center gap-2 px-3 py-2 text-white text-xs font-semibold" style={{ background: color }}>
+        {icon}
+        <span className="flex-1 truncate">{label}</span>
+      </div>
+      <div className="px-3 py-2 text-xs text-foreground">{children}</div>
+      {showSourceHandle && <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground !w-2 !h-2" />}
+    </div>
+  );
+}
+
+function MessageNode({ data, selected }: NodeProps) {
+  const d = data as RFNodeData;
+  return (
+    <NodeShell color="hsl(var(--node-message))" icon={<MessageSquare className="h-3.5 w-3.5" />} label="Enviar Mensagem" selected={selected}>
+      <p className="line-clamp-3 text-muted-foreground">{d.data.text || "Sem mensagem"}</p>
+    </NodeShell>
+  );
+}
+
+function MenuNode({ data, selected }: NodeProps) {
+  const d = data as RFNodeData;
+  const opts = d.data.options ?? [];
+  return (
+    <div className={cn("min-w-[240px] rounded-lg border-2 bg-card shadow-card overflow-hidden", selected ? "border-primary ring-2 ring-primary/20" : "border-border")}>
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+      <div className="flex items-center gap-2 px-3 py-2 text-white text-xs font-semibold" style={{ background: "hsl(var(--node-menu))" }}>
+        <ListOrdered className="h-3.5 w-3.5" />
+        <span className="flex-1 truncate">Menu de Opções</span>
+      </div>
+      <div className="px-3 py-2 text-xs">
+        {opts.length === 0 && <p className="text-muted-foreground">Sem opções</p>}
+        {opts.map((opt, idx) => (
+          <div key={opt.id} className="relative flex items-center justify-between py-1 border-b last:border-0 border-border">
+            <span className="text-foreground">{idx + 1}. {opt.label || "—"}</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={opt.id}
+              style={{ top: "auto", right: -8, transform: "none" }}
+              className="!bg-node-menu !w-2 !h-2"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConditionNode({ data, selected }: NodeProps) {
+  const d = data as RFNodeData;
+  const c = d.data.condition;
+  return (
+    <div className={cn("min-w-[220px] rounded-lg border-2 bg-card shadow-card overflow-hidden", selected ? "border-primary ring-2 ring-primary/20" : "border-border")}>
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+      <div className="flex items-center gap-2 px-3 py-2 text-white text-xs font-semibold" style={{ background: "hsl(var(--node-condition))" }}>
+        <GitBranch className="h-3.5 w-3.5" />
+        <span className="flex-1 truncate">Condição</span>
+      </div>
+      <div className="px-3 py-2 text-xs text-muted-foreground">
+        {c ? `${c.field} ${c.operator} ${c.value}` : "Sem condição"}
+      </div>
+      <div className="flex justify-around border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground">
+        <span>verdadeiro</span>
+        <span>falso</span>
+      </div>
+      <Handle type="source" position={Position.Bottom} id="true" style={{ left: "25%" }} className="!bg-success !w-2 !h-2" />
+      <Handle type="source" position={Position.Bottom} id="false" style={{ left: "75%" }} className="!bg-danger !w-2 !h-2" />
+    </div>
+  );
+}
+
+function WaitNode({ data, selected }: NodeProps) {
+  const d = data as RFNodeData;
+  const ms = d.data.waitMs ?? 0;
+  return (
+    <NodeShell color="hsl(var(--node-wait))" icon={<Clock className="h-3.5 w-3.5" />} label="Aguardar" selected={selected}>
+      <p className="text-muted-foreground">{(ms / 1000).toFixed(1)}s</p>
+    </NodeShell>
+  );
+}
+
+function TriggerNode({ selected }: NodeProps) {
+  return (
+    <div className={cn("min-w-[180px] rounded-lg border-2 bg-card shadow-card overflow-hidden", selected ? "border-primary ring-2 ring-primary/20" : "border-border")}>
+      <div className="flex items-center gap-2 px-3 py-2 text-white text-xs font-semibold" style={{ background: "hsl(var(--node-trigger))" }}>
+        <Zap className="h-3.5 w-3.5" />
+        <span className="flex-1 truncate">Início</span>
+      </div>
+      <div className="px-3 py-2 text-xs text-muted-foreground">Disparado quando o usuário inicia</div>
+      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground !w-2 !h-2" />
+    </div>
+  );
+}
+
+const NODE_TYPES = {
+  message: MessageNode,
+  menu: MenuNode,
+  condition: ConditionNode,
+  wait: WaitNode,
+  trigger: TriggerNode,
+};
+
+/* ------------------------------ Helpers --------------------------------- */
+
+const BLOCK_PALETTE: Array<{
+  type: FlowNodeType;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  defaults: FlowNodeData;
+}> = [
+  { type: "message", label: "Enviar Mensagem", icon: MessageSquare, color: "hsl(var(--node-message))", defaults: { text: "Olá!" } },
+  { type: "menu", label: "Menu de Opções", icon: ListOrdered, color: "hsl(var(--node-menu))", defaults: { options: [{ id: crypto.randomUUID(), label: "Opção 1", value: "1" }] } },
+  { type: "condition", label: "Condição", icon: GitBranch, color: "hsl(var(--node-condition))", defaults: { condition: { field: "input", operator: "==", value: "" } } },
+  { type: "wait", label: "Aguardar", icon: Clock, color: "hsl(var(--node-wait))", defaults: { waitMs: 1000 } },
+];
+
+function toRFNode(n: FlowNode): Node {
+  return {
+    id: n.id,
+    type: n.type,
+    position: { x: n.positionX, y: n.positionY },
+    data: { domainType: n.type, data: n.data } as RFNodeData,
+    deletable: n.type !== "trigger",
+  };
+}
+
+function toRFEdge(e: FlowEdge): Edge {
+  return {
+    id: e.id,
+    source: e.sourceNodeId,
+    target: e.targetNodeId,
+    sourceHandle: e.sourceHandle ?? undefined,
+    type: "smoothstep",
+    style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+  };
+}
+
+function rfToDomainNode(n: Node, flowId: string): FlowNode {
+  const d = n.data as RFNodeData;
+  return {
+    id: n.id,
+    flowId,
+    type: d.domainType,
+    data: d.data,
+    positionX: n.position.x,
+    positionY: n.position.y,
+  };
+}
+
+function rfToDomainEdge(e: Edge, flowId: string): FlowEdge {
+  return {
+    id: e.id,
+    flowId,
+    sourceNodeId: e.source,
+    targetNodeId: e.target,
+    sourceHandle: e.sourceHandle ?? null,
+  };
+}
+
+function validateFlow(nodes: Node[], edges: Edge[]): string[] {
+  const errors: string[] = [];
+  const triggers = nodes.filter((n) => (n.data as RFNodeData).domainType === "trigger");
+  if (triggers.length === 0) errors.push("Adicione um nó de Início.");
+  for (const n of nodes) {
+    const dt = (n.data as RFNodeData).domainType;
+    if (dt === "end") continue;
+    const out = edges.filter((e) => e.source === n.id);
+    if (out.length === 0) errors.push(`Bloco "${(n.data as RFNodeData).data.label || dt}" não tem saída.`);
+  }
+  return errors;
+}
+
+/* ------------------------------ Editor ---------------------------------- */
+
+function FlowCanvas({ flow, chatbotId }: { flow: FlowWithGraph; chatbotId: string }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [bannerVisible, setBannerVisible] = useState(params.get("generated") === "1");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const reactFlow = useReactFlow();
+
+  const present = useCanvasStore((s) => s.present);
+  const setPresent = useCanvasStore((s) => s.setPresent);
+  const pushHistory = useCanvasStore((s) => s.pushHistory);
+  const undo = useCanvasStore((s) => s.undo);
+  const redo = useCanvasStore((s) => s.redo);
+  const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
+  const selectNode = useCanvasStore((s) => s.selectNode);
+  const reset = useCanvasStore((s) => s.reset);
+  const past = useCanvasStore((s) => s.past);
+  const future = useCanvasStore((s) => s.future);
+
+  // Initial load
+  useEffect(() => {
+    const nodes = flow.nodes.map(toRFNode);
+    const edges = flow.edges.map(toRFEdge);
+    reset({ nodes, edges });
+  }, [flow, reset]);
+
+  // Autosave
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (present.nodes.length === 0) return;
+    saveTimer.current = setTimeout(() => {
+      setSaveStatus("saving");
+      flowsApi
+        .bulkUpdate(flow.id, {
+          nodes: present.nodes.map((n) => rfToDomainNode(n, flow.id)),
+          edges: present.edges.map((e) => rfToDomainEdge(e, flow.id)),
+        })
+        .then(() => setSaveStatus("saved"))
+        .catch(() => setSaveStatus("error"));
+    }, 1500);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [present, flow.id]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (meta && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const next = applyNodeChanges(changes, present.nodes);
+      const hasStructural = changes.some((c) => c.type === "remove" || c.type === "add");
+      const hasMoveEnd = changes.some((c) => c.type === "position" && c.dragging === false);
+      if (hasStructural || hasMoveEnd) {
+        pushHistory({ nodes: next, edges: present.edges });
+      } else {
+        setPresent({ nodes: next, edges: present.edges });
+      }
+    },
+    [present, pushHistory, setPresent],
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      const next = applyEdgeChanges(changes, present.edges);
+      const hasStructural = changes.some((c) => c.type === "remove" || c.type === "add");
+      if (hasStructural) {
+        pushHistory({ nodes: present.nodes, edges: next });
+      } else {
+        setPresent({ nodes: present.nodes, edges: next });
+      }
+    },
+    [present, pushHistory, setPresent],
+  );
+
+  const onConnect = useCallback(
+    (conn: Connection) => {
+      const target = present.nodes.find((n) => n.id === conn.target);
+      const source = present.nodes.find((n) => n.id === conn.source);
+      if (target && (target.data as RFNodeData).domainType === "trigger") {
+        toast.error("Não é possível conectar para o nó de Início");
+        return;
+      }
+      if (source && (source.data as RFNodeData).domainType === "end") {
+        toast.error("Nó de fim não pode ter saídas");
+        return;
+      }
+      const newEdge: Edge = {
+        ...conn,
+        id: crypto.randomUUID(),
+        source: conn.source!,
+        target: conn.target!,
+        type: "smoothstep",
+        style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+      };
+      pushHistory({ nodes: present.nodes, edges: addEdge(newEdge, present.edges) });
+    },
+    [present, pushHistory],
+  );
+
+  const onSelectionChange = useCallback(
+    ({ nodes }: { nodes: Node[] }) => {
+      selectNode(nodes[0]?.id ?? null);
+    },
+    [selectNode],
+  );
+
+  // Drag from palette
+  const onDragStart = (e: React.DragEvent, type: FlowNodeType) => {
+    e.dataTransfer.setData("application/jetgo-node", type);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData("application/jetgo-node") as FlowNodeType;
+      if (!type) return;
+      const palette = BLOCK_PALETTE.find((p) => p.type === type);
+      if (!palette) return;
+      const position = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const newNode: Node = {
+        id: crypto.randomUUID(),
+        type,
+        position,
+        data: { domainType: type, data: { ...palette.defaults } } as RFNodeData,
+      };
+      pushHistory({ nodes: [...present.nodes, newNode], edges: present.edges });
+    },
+    [present, pushHistory, reactFlow],
+  );
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const selectedNode = present.nodes.find((n) => n.id === selectedNodeId) ?? null;
+
+  const updateSelectedData = (patch: Partial<FlowNodeData>) => {
+    if (!selectedNode) return;
+    const next = present.nodes.map((n) => {
+      if (n.id !== selectedNode.id) return n;
+      const d = n.data as RFNodeData;
+      return { ...n, data: { ...d, data: { ...d.data, ...patch } } };
+    });
+    setPresent({ nodes: next, edges: present.edges });
+  };
+
+  const persistSelected = () => {
+    pushHistory({ nodes: present.nodes, edges: present.edges });
+    toast.success("Bloco atualizado");
+  };
+
+  const publish = useMutation({
+    mutationFn: () => flowsApi.publish(flow.id),
+    onMutate: () => {
+      const errs = validateFlow(present.nodes, present.edges);
+      if (errs.length > 0) {
+        const ids = new Set<string>();
+        for (const n of present.nodes) {
+          if ((n.data as RFNodeData).domainType !== "end") {
+            const has = present.edges.some((e) => e.source === n.id);
+            if (!has) ids.add(n.id);
+          }
+        }
+        setErrorNodeIds(ids);
+        toast.error(errs[0] ?? "Validação falhou");
+        throw new Error("validation");
+      }
+      setErrorNodeIds(new Set());
+    },
+    onSuccess: () => {
+      toast.success("Fluxo publicado");
+      qc.invalidateQueries({ queryKey: ["flow", flow.id] });
+    },
+    onError: (err) => {
+      if (err.message === "validation") return;
+      toast.error(err instanceof ApiError ? err.message : "Falha ao publicar");
+    },
+  });
+
+  // Mark error nodes via class
+  const decoratedNodes = useMemo(
+    () =>
+      present.nodes.map((n) =>
+        errorNodeIds.has(n.id)
+          ? { ...n, className: cn(n.className, "ring-2 ring-danger animate-pulse-error rounded-lg") }
+          : n,
+      ),
+    [present.nodes, errorNodeIds],
+  );
+
+  return (
+    <div className="flex h-screen flex-col bg-background">
+      {/* Header */}
+      <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/chatbots")} aria-label="Voltar">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-semibold text-foreground truncate">{flow.name}</h1>
+          <p className="text-xs text-muted-foreground">Editor Visual de Fluxo</p>
+        </div>
+        <SaveStatus status={saveStatus} />
+        <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} aria-label="Desfazer">
+          <Undo2 className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={redo} disabled={future.length === 0} aria-label="Refazer">
+          <Redo2 className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setAdjustOpen(true)}
+          className="border-ai/40 text-ai hover:bg-ai-soft hover:text-ai"
+        >
+          <Sparkles className="h-4 w-4" />
+          Ajustar com IA
+        </Button>
+        <Button variant="ghost" disabled>
+          <Play className="h-4 w-4" />
+          Testar Fluxo
+        </Button>
+        <Button onClick={() => publish.mutate()} disabled={publish.isPending}>
+          {publish.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Publicar
+        </Button>
+      </header>
+
+      {bannerVisible && (
+        <div className="flex items-center justify-between gap-3 border-b border-ai/20 bg-ai-soft px-4 py-2.5 text-sm">
+          <div className="flex items-center gap-2 text-ai">
+            <Sparkles className="h-4 w-4" />
+            <span className="font-medium">Fluxo gerado pela IA com sucesso!</span>
+            <span className="text-foreground/70">Revise e ajuste visualmente o que quiser.</span>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setBannerVisible(false)} className="h-6 w-6">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* 3-column layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Palette */}
+        <aside className="w-[240px] shrink-0 overflow-y-auto border-r border-border bg-card p-3">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Blocos Disponíveis
+          </h2>
+          <div className="space-y-2">
+            {BLOCK_PALETTE.map((p) => {
+              const Icon = p.icon;
+              return (
+                <button
+                  key={p.type}
+                  draggable
+                  onDragStart={(e) => onDragStart(e, p.type)}
+                  className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-secondary transition-colors cursor-grab active:cursor-grabbing"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded text-white" style={{ background: p.color }}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="truncate">{p.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 rounded-lg border border-border bg-secondary p-3 text-xs text-muted-foreground">
+            <p className="mb-2 font-semibold text-foreground">Instruções</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Arraste blocos para o canvas</li>
+              <li>Conecte arrastando entre os pontos</li>
+              <li>Clique para editar à direita</li>
+              <li>Salvar é automático</li>
+            </ol>
+          </div>
+        </aside>
+
+        {/* Canvas */}
+        <div className="flex-1 relative" onDrop={onDrop} onDragOver={onDragOver}>
+          <ReactFlow
+            nodes={decoratedNodes}
+            edges={present.edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onSelectionChange={onSelectionChange}
+            nodeTypes={NODE_TYPES}
+            snapToGrid
+            snapGrid={[16, 16]}
+            fitView
+            panOnScroll
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background gap={16} color="hsl(var(--border))" />
+            <Controls className="!bg-card !border-border" />
+            <MiniMap pannable zoomable className="!bg-card !border-border" />
+          </ReactFlow>
+        </div>
+
+        {/* Side panel */}
+        {selectedNode && (
+          <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-border bg-card p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">Editar Bloco</h2>
+              <Button variant="ghost" size="icon" onClick={() => selectNode(null)} aria-label="Fechar" className="h-7 w-7">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <NodeEditor node={selectedNode} onChange={updateSelectedData} onSave={persistSelected} onDelete={() => {
+              if ((selectedNode.data as RFNodeData).domainType === "trigger") {
+                toast.error("O nó de Início não pode ser excluído");
+                return;
+              }
+              const next = present.nodes.filter((n) => n.id !== selectedNode.id);
+              const nextEdges = present.edges.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id);
+              pushHistory({ nodes: next, edges: nextEdges });
+              selectNode(null);
+            }} />
+          </aside>
+        )}
+      </div>
+
+      <AdjustWithAIDialog
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        chatbotId={chatbotId}
+        currentNodes={present.nodes.map((n) => ({ domainType: (n.data as RFNodeData).domainType }))}
+        onApply={({ nodes, edges }) => {
+          const rfNodes = nodes.map(toRFNode);
+          const rfEdges = edges.map(toRFEdge);
+          pushHistory({ nodes: rfNodes, edges: rfEdges });
+        }}
+      />
+    </div>
+  );
+}
+
+function SaveStatus({ status }: { status: "idle" | "saving" | "saved" | "error" }) {
+  const map = {
+    idle: { label: "—", cls: "text-muted-foreground" },
+    saving: { label: "Salvando...", cls: "text-muted-foreground" },
+    saved: { label: "Salvo", cls: "text-success" },
+    error: { label: "Erro ao salvar", cls: "text-danger" },
+  };
+  const v = map[status];
+  return <span className={cn("text-xs font-medium mr-2", v.cls)}>{v.label}</span>;
+}
+
+function NodeEditor({ node, onChange, onSave, onDelete }: { node: Node; onChange: (p: Partial<FlowNodeData>) => void; onSave: () => void; onDelete: () => void }) {
+  const d = (node.data as RFNodeData).data;
+  const type = (node.data as RFNodeData).domainType;
+
+  return (
+    <div className="space-y-4">
+      <Badge variant="outline" className="capitalize">{type}</Badge>
+
+      {type === "message" && (
+        <div className="space-y-2">
+          <Label htmlFor="msg-text">Mensagem</Label>
+          <Textarea id="msg-text" rows={5} value={d.text ?? ""} onChange={(e) => onChange({ text: e.target.value })} />
+        </div>
+      )}
+
+      {type === "menu" && (
+        <div className="space-y-2">
+          <Label>Opções do Menu</Label>
+          {(d.options ?? []).map((opt, idx) => (
+            <div key={opt.id} className="flex items-center gap-2">
+              <Input
+                value={opt.label}
+                placeholder={`Opção ${idx + 1}`}
+                onChange={(e) => {
+                  const next = [...(d.options ?? [])];
+                  next[idx] = { ...opt, label: e.target.value, value: e.target.value };
+                  onChange({ options: next });
+                }}
+              />
+              <Button variant="ghost" size="icon" onClick={() => onChange({ options: (d.options ?? []).filter((o) => o.id !== opt.id) })} aria-label="Remover opção">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" onClick={() => onChange({ options: [...(d.options ?? []), { id: crypto.randomUUID(), label: "", value: "" }] })}>
+            <Plus className="h-4 w-4" /> Adicionar Opção
+          </Button>
+        </div>
+      )}
+
+      {type === "condition" && (
+        <div className="space-y-2">
+          <Label>Campo</Label>
+          <Input value={d.condition?.field ?? ""} onChange={(e) => onChange({ condition: { field: e.target.value, operator: d.condition?.operator ?? "==", value: d.condition?.value ?? "" } })} />
+          <Label>Operador</Label>
+          <select
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={d.condition?.operator ?? "=="}
+            onChange={(e) => onChange({ condition: { field: d.condition?.field ?? "", operator: e.target.value as FlowNodeData["condition"] extends infer C ? C extends { operator: infer O } ? O : never : never, value: d.condition?.value ?? "" } })}
+          >
+            <option value="==">igual</option>
+            <option value="!=">diferente</option>
+            <option value="contains">contém</option>
+            <option value=">">maior</option>
+            <option value="<">menor</option>
+          </select>
+          <Label>Valor</Label>
+          <Input value={d.condition?.value ?? ""} onChange={(e) => onChange({ condition: { field: d.condition?.field ?? "", operator: d.condition?.operator ?? "==", value: e.target.value } })} />
+        </div>
+      )}
+
+      {type === "wait" && (
+        <div className="space-y-2">
+          <Label htmlFor="wait-sec">Segundos</Label>
+          <Input id="wait-sec" type="number" min={0} step={0.5} value={(d.waitMs ?? 0) / 1000} onChange={(e) => onChange({ waitMs: Math.max(0, Number(e.target.value) * 1000) })} />
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-2">
+        <Button onClick={onSave} className="flex-1">
+          <Save className="h-4 w-4" />
+          Salvar Alterações
+        </Button>
+        {type !== "trigger" && (
+          <Button variant="ghost" onClick={onDelete} className="text-danger hover:bg-danger-soft hover:text-danger">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ Page ------------------------------------ */
+
+export default function ChatbotEditorPage() {
+  const { id } = useParams<{ id: string }>();
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+
+  const chatbot = useQuery({
+    queryKey: ["chatbot", id],
+    queryFn: () => chatbotsApi.get(id!),
+    enabled: !!id,
+  });
+
+  const flow = useQuery({
+    queryKey: ["flow", chatbot.data?.activeFlowId],
+    queryFn: () => flowsApi.get(chatbot.data!.activeFlowId!),
+    enabled: !!chatbot.data?.activeFlowId,
+  });
+
+  if (isMobile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-center bg-background">
+        <Card className="p-6 max-w-sm">
+          <h2 className="text-base font-semibold text-foreground">Editor visual</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Edite o fluxo no desktop para a melhor experiência. Esta tela não é otimizada para mobile.
+          </p>
+          <Button className="mt-4" onClick={() => navigate("/chatbots")}>Voltar</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (chatbot.isLoading || flow.isLoading) {
+    return (
+      <div className="p-8 space-y-4">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-[500px] w-full" />
+      </div>
+    );
+  }
+
+  if (chatbot.isError || !chatbot.data) {
+    return (
+      <div className="p-8">
+        <Card className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">Não foi possível carregar o chatbot.</p>
+          <Button className="mt-4" variant="outline" onClick={() => chatbot.refetch()}>Tentar novamente</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!chatbot.data.activeFlowId || !flow.data) {
+    return (
+      <div className="p-8">
+        <Card className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">Este chatbot ainda não tem um fluxo ativo.</p>
+          <Button className="mt-4" variant="outline" onClick={() => navigate("/chatbots")}>Voltar</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <ReactFlowProvider>
+      <FlowCanvas flow={flow.data} chatbotId={chatbot.data.id} />
+    </ReactFlowProvider>
+  );
+}
