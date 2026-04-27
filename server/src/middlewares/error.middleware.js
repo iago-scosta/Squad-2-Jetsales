@@ -1,9 +1,9 @@
 function errorMiddleware(error, req, res, next) {
   const statusCode = error.statusCode || 500;
   const message =
-    statusCode === 500
-      ? "erro interno do servidor"
-      : error.message || "erro inesperado";
+    error.expose || statusCode < 500
+      ? error.message || "erro inesperado"
+      : "erro interno do servidor";
 
   if (statusCode === 500) {
     console.error(error);

@@ -1,24 +1,15 @@
-const memoryStore = require("../../database/memory-store");
 const createHttpError = require("../../utils/http-error");
+const {
+  validateRequiredText,
+  validateOptionalText,
+  validateOptionalBoolean,
+  validateRequiredUuid,
+} = require("../../utils/validation");
+const chatbotRepository = require("./chatbot.repository");
 
-function validateRequiredText(value, fieldName) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw createHttpError(400, `${fieldName} e obrigatorio`);
-  }
-
-  return value.trim();
-}
-
-function validateOptionalText(value, fieldName) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return validateRequiredText(value, fieldName);
-}
-
-function findOne(id) {
-  const chatbot = memoryStore.findById("chatbots", id);
+async function findOne(id) {
+  const chatbotId = validateRequiredUuid(id, "id");
+  const chatbot = await chatbotRepository.findById(chatbotId);
 
   if (!chatbot) {
     throw createHttpError(404, "chatbot nao encontrado");
@@ -27,7 +18,7 @@ function findOne(id) {
   return chatbot;
 }
 
-function create(data) {
+async function create(data) {
   const name = validateRequiredText(data.name, "name");
   const organizationId = validateRequiredText(
     data.organization_id,
@@ -35,7 +26,7 @@ function create(data) {
   );
   const type = validateOptionalText(data.type, "type") || "whatsapp";
 
-  return memoryStore.create("chatbots", {
+  return chatbotRepository.create({
     name,
     organization_id: organizationId,
     type,
@@ -43,63 +34,38 @@ function create(data) {
   });
 }
 
-function findAll() {
-  return memoryStore.list("chatbots");
+async function findAll() {
+  return chatbotRepository.findAll();
 }
 
-function update(id, data) {
-  findOne(id);
+async function update(id, data) {
+  const chatbot = await findOne(id);
+  const nextData = {
+    organization_id:
+      data.organization_id !== undefined
+        ? validateRequiredText(data.organization_id, "organization_id")
+        : chatbot.organization_id,
+    name:
+      data.name !== undefined
+        ? validateRequiredText(data.name, "name")
+        : chatbot.name,
+    type:
+      data.type !== undefined
+        ? validateRequiredText(data.type, "type")
+        : chatbot.type,
+    is_active:
+      data.is_active !== undefined
+        ? validateOptionalBoolean(data.is_active, "is_active")
+        : chatbot.is_active,
+  };
 
-  const nextData = {};
-
-  if (data.name !== undefined) {
-    nextData.name = validateRequiredText(data.name, "name");
-  }
-
-  if (data.organization_id !== undefined) {
-    nextData.organization_id = validateRequiredText(
-      data.organization_id,
-      "organization_id"
-    );
-  }
-
-  if (data.type !== undefined) {
-    nextData.type = validateRequiredText(data.type, "type");
-  }
-
-  if (data.is_active !== undefined) {
-    nextData.is_active = Boolean(data.is_active);
-  }
-
-  return memoryStore.update("chatbots", id, nextData);
+  return chatbotRepository.update(chatbot.id, nextData);
 }
 
-function remove(id) {
-  const chatbot = findOne(id);
-  const relatedFlows = memoryStore.filter("flows", (flow) => flow.chatbot_id === id);
-  const relatedConversations = memoryStore.filter(
-    "conversations",
-    (conversation) => conversation.chatbot_id === id
-  );
+async function remove(id) {
+  const chatbot = await findOne(id);
 
-  relatedFlows.forEach((flow) => {
-    memoryStore.removeMany("flow_nodes", (node) => node.flow_id === flow.id);
-    memoryStore.removeMany("flow_edges", (edge) => edge.flow_id === flow.id);
-  });
-
-  relatedConversations.forEach((conversation) => {
-    memoryStore.removeMany(
-      "messages",
-      (message) => message.conversation_id === conversation.id
-    );
-  });
-
-  memoryStore.removeMany("flows", (flow) => flow.chatbot_id === id);
-  memoryStore.removeMany(
-    "conversations",
-    (conversation) => conversation.chatbot_id === id
-  );
-  memoryStore.remove("chatbots", id);
+  await chatbotRepository.remove(chatbot.id);
 
   return chatbot;
 }

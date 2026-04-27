@@ -1,44 +1,16 @@
-const memoryStore = require("../../database/memory-store");
 const createHttpError = require("../../utils/http-error");
+const {
+  validateRequiredText,
+  validateOptionalText,
+  validateRequiredUuid,
+  validateRequiredObject,
+  validateOptionalInteger,
+} = require("../../utils/validation");
+const chatbotRepository = require("../chatbot/chatbot.repository");
+const flowRepository = require("./flow.repository");
 
-function validateRequiredText(value, fieldName) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw createHttpError(400, `${fieldName} e obrigatorio`);
-  }
-
-  return value.trim();
-}
-
-function validateOptionalText(value, fieldName) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return validateRequiredText(value, fieldName);
-}
-
-function validateRequiredObject(value, fieldName) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw createHttpError(400, `${fieldName} e obrigatorio`);
-  }
-
-  return value;
-}
-
-function validateOptionalPosition(value, fieldName) {
-  if (value === undefined) {
-    return 0;
-  }
-
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    throw createHttpError(400, `${fieldName} precisa ser numerico`);
-  }
-
-  return value;
-}
-
-function ensureChatbotExists(chatbotId) {
-  const chatbot = memoryStore.findById("chatbots", chatbotId);
+async function ensureChatbotExists(chatbotId) {
+  const chatbot = await chatbotRepository.findById(chatbotId);
 
   if (!chatbot) {
     throw createHttpError(404, "chatbot nao encontrado");
@@ -47,8 +19,9 @@ function ensureChatbotExists(chatbotId) {
   return chatbot;
 }
 
-function findOne(id) {
-  const flow = memoryStore.findById("flows", id);
+async function findOne(id) {
+  const flowId = validateRequiredUuid(id, "id");
+  const flow = await flowRepository.findFlowById(flowId);
 
   if (!flow) {
     throw createHttpError(404, "fluxo nao encontrado");
@@ -57,13 +30,13 @@ function findOne(id) {
   return flow;
 }
 
-function create(data) {
-  const chatbotId = validateRequiredText(data.chatbot_id, "chatbot_id");
+async function create(data) {
+  const chatbotId = validateRequiredUuid(data.chatbot_id, "chatbot_id");
   const name = validateRequiredText(data.name, "name");
 
-  ensureChatbotExists(chatbotId);
+  await ensureChatbotExists(chatbotId);
 
-  return memoryStore.create("flows", {
+  return flowRepository.createFlow({
     chatbot_id: chatbotId,
     name,
     status: "draft",
@@ -71,70 +44,75 @@ function create(data) {
   });
 }
 
-function findAll() {
-  return memoryStore.list("flows");
+async function findAll() {
+  return flowRepository.findAllFlows();
 }
 
-function update(id, data) {
-  findOne(id);
+async function update(id, data) {
+  const flow = await findOne(id);
 
-  const nextData = {};
+  const chatbotId =
+    data.chatbot_id !== undefined
+      ? validateRequiredUuid(data.chatbot_id, "chatbot_id")
+      : flow.chatbot_id;
 
-  if (data.chatbot_id !== undefined) {
-    const chatbotId = validateRequiredText(data.chatbot_id, "chatbot_id");
-    ensureChatbotExists(chatbotId);
-    nextData.chatbot_id = chatbotId;
+  await ensureChatbotExists(chatbotId);
+
+  const nextData = {
+    chatbot_id: chatbotId,
+    name:
+      data.name !== undefined
+        ? validateRequiredText(data.name, "name")
+        : flow.name,
+    status:
+      data.status !== undefined
+        ? validateRequiredText(data.status, "status")
+        : flow.status,
+    version:
+      data.version !== undefined
+        ? validateOptionalInteger(data.version, "version")
+        : flow.version,
+  };
+
+  if (nextData.version < 1) {
+    throw createHttpError(400, "version precisa ser um numero inteiro");
   }
 
-  if (data.name !== undefined) {
-    nextData.name = validateRequiredText(data.name, "name");
-  }
-
-  if (data.status !== undefined) {
-    nextData.status = validateRequiredText(data.status, "status");
-  }
-
-  if (data.version !== undefined) {
-    if (!Number.isInteger(data.version) || data.version < 1) {
-      throw createHttpError(400, "version precisa ser um numero inteiro");
-    }
-
-    nextData.version = data.version;
-  }
-
-  return memoryStore.update("flows", id, nextData);
+  return flowRepository.updateFlow(flow.id, nextData);
 }
 
-function remove(id) {
-  const flow = findOne(id);
+async function remove(id) {
+  const flow = await findOne(id);
 
-  memoryStore.removeMany("flow_nodes", (node) => node.flow_id === id);
-  memoryStore.removeMany("flow_edges", (edge) => edge.flow_id === id);
-  memoryStore.remove("flows", id);
+  await flowRepository.removeFlow(flow.id);
 
   return flow;
 }
 
-function ensureFlowExists(flowId) {
+async function ensureFlowExists(flowId) {
   return findOne(flowId);
 }
 
-function listNodes(flowId) {
-  ensureFlowExists(flowId);
+async function listNodes(flowId) {
+  const validFlowId = validateRequiredUuid(flowId, "flowId");
 
-  return memoryStore.filter("flow_nodes", (node) => node.flow_id === flowId);
+  await ensureFlowExists(validFlowId);
+
+  return flowRepository.listNodes(validFlowId);
 }
 
-function createNode(flowId, data) {
-  ensureFlowExists(flowId);
+async function createNode(flowId, data) {
+  const validFlowId = validateRequiredUuid(flowId, "flowId");
+
+  await ensureFlowExists(validFlowId);
 
   const type = validateRequiredText(data.type, "type");
   const nodeData = validateRequiredObject(data.data, "data");
-  const positionX = validateOptionalPosition(data.position_x, "position_x");
-  const positionY = validateOptionalPosition(data.position_y, "position_y");
+  const positionX = validateOptionalInteger(data.position_x, "position_x", 0);
+  const positionY = validateOptionalInteger(data.position_y, "position_y", 0);
 
-  return memoryStore.create("flow_nodes", {
-    flow_id: flowId,
+  return flowRepository.createNode({
+    flow_id: validFlowId,
     type,
     data: nodeData,
     position_x: positionX,
@@ -142,20 +120,21 @@ function createNode(flowId, data) {
   });
 }
 
-function listEdges(flowId) {
-  ensureFlowExists(flowId);
+async function listEdges(flowId) {
+  const validFlowId = validateRequiredUuid(flowId, "flowId");
 
-  return memoryStore.filter("flow_edges", (edge) => edge.flow_id === flowId);
+  await ensureFlowExists(validFlowId);
+
+  return flowRepository.listEdges(validFlowId);
 }
 
-function createEdge(flowId, data) {
-  ensureFlowExists(flowId);
-
-  const sourceNodeId = validateRequiredText(
+async function createEdge(flowId, data) {
+  const validFlowId = validateRequiredUuid(flowId, "flowId");
+  const sourceNodeId = validateRequiredUuid(
     data.source_node_id,
     "source_node_id"
   );
-  const targetNodeId = validateRequiredText(
+  const targetNodeId = validateRequiredUuid(
     data.target_node_id,
     "target_node_id"
   );
@@ -168,19 +147,21 @@ function createEdge(flowId, data) {
       ? null
       : String(data.condition_value);
 
-  const sourceNode = memoryStore.findById("flow_nodes", sourceNodeId);
-  const targetNode = memoryStore.findById("flow_nodes", targetNodeId);
+  await ensureFlowExists(validFlowId);
+
+  const sourceNode = await flowRepository.findNodeById(sourceNodeId);
+  const targetNode = await flowRepository.findNodeById(targetNodeId);
 
   if (!sourceNode || !targetNode) {
     throw createHttpError(404, "no do fluxo nao encontrado");
   }
 
-  if (sourceNode.flow_id !== flowId || targetNode.flow_id !== flowId) {
+  if (sourceNode.flow_id !== validFlowId || targetNode.flow_id !== validFlowId) {
     throw createHttpError(404, "os nos precisam pertencer ao mesmo fluxo");
   }
 
-  return memoryStore.create("flow_edges", {
-    flow_id: flowId,
+  return flowRepository.createEdge({
+    flow_id: validFlowId,
     source_node_id: sourceNodeId,
     target_node_id: targetNodeId,
     condition_type: conditionType || null,
