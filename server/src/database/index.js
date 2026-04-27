@@ -1,1 +1,1 @@
-module.exports = require("./memory-store");
+module.exports = require("./db");
