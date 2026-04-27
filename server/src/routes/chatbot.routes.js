@@ -7,6 +7,7 @@ router.post("/", chatbotController.create);
 router.get("/", chatbotController.findAll);
 router.get("/:id", chatbotController.findOne);
 router.put("/:id", chatbotController.update);
+router.patch("/:id", chatbotController.patch);
 router.delete("/:id", chatbotController.remove);
 
 module.exports = router;
