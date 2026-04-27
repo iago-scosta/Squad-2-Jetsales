@@ -1,61 +1,54 @@
-const service = require('./chatbot.service');
+const chatbotService = require("./chatbot.service");
 
-//post
-exports.create = async (req, res) => {
+function create(req, res, next) {
   try {
-    const chatbot = await service.create(req.body);
+    const chatbot = chatbotService.create(req.body);
     res.status(201).json(chatbot);
+  } catch (error) {
+    next(error);
+  }
+}
 
-    } catch (err) {
-    res.status(500).json({ error: err.message });
-    }
-};
-
-//get all
-exports.findAll = async (req, res) => {
+function findAll(req, res, next) {
   try {
-    const chatbots = await service.findAll();
+    const chatbots = chatbotService.findAll();
     res.json(chatbots);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    next(error);
   }
-};
+}
 
-//get by id
-exports.findOne = async (req, res) => {
+function findOne(req, res, next) {
   try {
-    const chatbot = await service.findOne(req.params.id);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
+    const chatbot = chatbotService.findOne(req.params.id);
     res.json(chatbot);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    next(error);
   }
-};
+}
 
-//put
-exports.update = async (req, res) => {
+function update(req, res, next) {
   try {
-    const chatbot = await service.update(req.params.id, req.body);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
+    const chatbot = chatbotService.update(req.params.id, req.body);
     res.json(chatbot);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    next(error);
   }
-};
-    
-//delete
-exports.remove = async (req, res) => {
+}
+
+function remove(req, res, next) {
   try {
-    const chatbot = await service.remove(req.params.id);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
-    res.json({ message: 'Chatbot deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    chatbotService.remove(req.params.id);
+    res.json({ mensagem: "chatbot removido com sucesso" });
+  } catch (error) {
+    next(error);
   }
+}
+
+module.exports = {
+  create,
+  findAll,
+  findOne,
+  update,
+  remove,
 };

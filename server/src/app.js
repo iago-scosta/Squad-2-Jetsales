@@ -5,7 +5,7 @@ const errorMiddleware = require("./middlewares/error.middleware");
 const notFoundMiddleware = require("./middlewares/not-found.middleware");
 const routes = require("./routes");
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 
