@@ -1,24 +1,29 @@
 # Backend JetGO
 
-Sprint 02 do backend do JetGO. A API da Sprint 01 foi mantida, mas agora os dados principais passam a ser persistidos em PostgreSQL com `pg` puro, sem ORM.
+Backend academico do JetGO feito em Node.js + Express.
 
-## O que mudou na Sprint 02
+Nesta etapa o foco e deixar a API simples, coerente e facil de rodar na maquina
+de qualquer integrante da equipe. Por isso o projeto usa armazenamento em
+memoria: enquanto o servidor estiver ligado, os dados ficam disponiveis. Quando
+o processo reinicia, tudo volta para o estado inicial.
 
-- configuracao de conexao com PostgreSQL em `server/src/database/db.js`;
-- migration SQL inicial das tabelas principais;
-- script `npm run db:migrate`;
-- repositories separados para concentrar o SQL;
-- endpoints da API inicial persistindo no banco;
-- webhook fake salvando contato, conversa e mensagens no PostgreSQL;
-- fallback claro quando `DATABASE_URL` nao estiver configurado.
+## O que existe hoje
 
-## Tecnologias
+- CRUD de chatbots
+- CRUD de fluxos
+- CRUD basico de nos e edges
+- Conversas e mensagens
+- Webhook fake do WhatsApp
+- Endpoint fake de IA
+- Resumo simples de analytics
+- Tratamento de erro padronizado
 
-- Node.js
-- Express
-- PostgreSQL
-- pg
-- Nodemon
+## O que nao existe ainda
+
+- banco real
+- autenticacao
+- integracao real com WhatsApp
+- integracao real com IA
 
 ## Como instalar
 
@@ -27,46 +32,7 @@ cd server
 npm install
 ```
 
-## Como configurar o .env
-
-Copie o exemplo:
-
-```bash
-cp .env.example .env
-```
-
-Conteudo esperado:
-
-```env
-PORT=3001
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/jetsales
-```
-
-O arquivo `.env` nao deve ser commitado.
-
-## Como criar o banco local
-
-Se voce tiver PostgreSQL com linha de comando:
-
-```bash
-createdb jetsales
-```
-
-Se preferir, o banco tambem pode ser criado manualmente no pgAdmin ou DBeaver.
-
-## Como rodar migrations
-
-```bash
-npm run db:migrate
-```
-
-## Como subir o backend
-
-Modo desenvolvimento:
-
-```bash
-npm run dev
-```
+## Como rodar
 
 Modo normal:
 
@@ -74,241 +40,182 @@ Modo normal:
 npm start
 ```
 
-## Fluxo basico
+Modo desenvolvimento:
 
 ```bash
-cd server
-npm install
-cp .env.example .env
-npm run db:migrate
 npm run dev
 ```
 
-## Base URL
+Por padrao o servidor sobe em:
 
 ```txt
 http://localhost:3001
 ```
 
-## Tabelas criadas
+Se quiser mudar a porta, copie o exemplo:
 
-- `chatbots`
-- `flows`
-- `flow_nodes`
-- `flow_edges`
-- `contacts`
-- `conversations`
-- `messages`
+```bash
+copy .env.example .env
+```
 
-## Endpoints disponiveis
+Conteudo esperado:
 
-### Health
+```env
+PORT=3001
+```
 
-`GET /health`
+## Como testar
 
-Resposta:
+Teste automatizado:
+
+```bash
+npm test
+```
+
+Smoke tests manuais:
+
+```bash
+curl http://localhost:3001/health
+curl http://localhost:3001/api/v1
+```
+
+## Rotas principais
+
+- `GET /`
+- `GET /health`
+- `GET /api/v1`
+- `GET /api/v1/chatbots`
+- `POST /api/v1/chatbots`
+- `GET /api/v1/chatbots/:id`
+- `PUT /api/v1/chatbots/:id`
+- `PATCH /api/v1/chatbots/:id`
+- `DELETE /api/v1/chatbots/:id`
+- `GET /api/v1/flows`
+- `POST /api/v1/flows`
+- `GET /api/v1/flows/:id`
+- `PUT /api/v1/flows/:id`
+- `PATCH /api/v1/flows/:id`
+- `DELETE /api/v1/flows/:id`
+- `GET /api/v1/flows/:flowId/nodes`
+- `POST /api/v1/flows/:flowId/nodes`
+- `PUT /api/v1/flows/:flowId/nodes/:nodeId`
+- `PATCH /api/v1/flows/:flowId/nodes/:nodeId`
+- `DELETE /api/v1/flows/:flowId/nodes/:nodeId`
+- `GET /api/v1/flows/:flowId/edges`
+- `POST /api/v1/flows/:flowId/edges`
+- `DELETE /api/v1/flows/:flowId/edges/:edgeId`
+- `GET /api/v1/conversations`
+- `POST /api/v1/conversations`
+- `GET /api/v1/conversations/:id`
+- `PATCH /api/v1/conversations/:id`
+- `DELETE /api/v1/conversations/:id`
+- `GET /api/v1/conversations/:id/messages`
+- `POST /api/v1/conversations/:id/messages`
+- `POST /api/v1/webhook/whatsapp`
+- `POST /api/v1/ai/respond`
+- `GET /api/v1/analytics/summary`
+
+## Exemplos de payload
+
+Criar chatbot:
 
 ```json
 {
-  "status": "ok",
-  "service": "jetsales-backend"
+  "name": "Bot Comercial",
+  "type": "hybrid"
 }
 ```
 
-### Chatbots
-
-`POST /api/v1/chatbots`
-
-Payload:
+Criar fluxo:
 
 ```json
 {
-  "name": "Atendimento",
-  "organization_id": "org-001",
-  "type": "whatsapp"
+  "chatbot_id": "id-do-chatbot",
+  "name": "Fluxo Inicial",
+  "status": "draft"
 }
 ```
 
-`GET /api/v1/chatbots`
-
-`GET /api/v1/chatbots/:id`
-
-`PUT /api/v1/chatbots/:id`
-
-`DELETE /api/v1/chatbots/:id`
-
-### Flows
-
-`POST /api/v1/flows`
-
-Payload:
+Criar conversa:
 
 ```json
 {
-  "chatbot_id": "COLE_AQUI_O_ID_DO_CHATBOT",
-  "name": "Fluxo de vendas"
+  "chatbot_id": "id-do-chatbot",
+  "contact_name": "Maria",
+  "contact_phone": "79999999999"
 }
 ```
 
-`GET /api/v1/flows`
-
-`GET /api/v1/flows/:id`
-
-`PUT /api/v1/flows/:id`
-
-`DELETE /api/v1/flows/:id`
-
-### Nodes
-
-`POST /api/v1/flows/:flowId/nodes`
-
-Payload:
+Enviar mensagem em uma conversa:
 
 ```json
 {
-  "type": "message",
-  "data": {
-    "text": "Ola, como posso ajudar?"
-  },
-  "position_x": 100,
-  "position_y": 200
+  "direction": "out",
+  "content": "Posso ajudar com mais alguma coisa?"
 }
 ```
 
-`GET /api/v1/flows/:flowId/nodes`
-
-### Edges
-
-`POST /api/v1/flows/:flowId/edges`
-
-Payload:
-
-```json
-{
-  "source_node_id": "ID_DO_NO_ORIGEM",
-  "target_node_id": "ID_DO_NO_DESTINO",
-  "condition_type": "equals",
-  "condition_value": "comprar"
-}
-```
-
-`GET /api/v1/flows/:flowId/edges`
-
-### Webhook fake
-
-`POST /api/v1/webhook/whatsapp`
-
-Payload:
+Webhook fake do WhatsApp:
 
 ```json
 {
   "phone": "79999999999",
   "message": "Quero comprar",
-  "chatbot_id": "COLE_AQUI_O_ID_DO_CHATBOT"
+  "chatbot_id": "id-do-chatbot"
 }
 ```
 
-Resposta:
+Endpoint fake de IA:
 
 ```json
 {
-  "conversation_id": "uuid",
-  "contact_id": "uuid",
-  "received_message": "Quero comprar",
-  "bot_response": "Ola! Recebemos sua mensagem: Quero comprar. Em breve o fluxo real sera executado."
+  "conversation_id": "id-da-conversa",
+  "message": "Qual o preco?"
 }
 ```
 
-## Quais endpoints usam PostgreSQL
+## Formato de resposta
 
-Todos os endpoints de negocio da Sprint 01 usam PostgreSQL nesta sprint:
+Sucesso simples:
 
-- `POST /api/v1/chatbots`
-- `GET /api/v1/chatbots`
-- `GET /api/v1/chatbots/:id`
-- `PUT /api/v1/chatbots/:id`
-- `DELETE /api/v1/chatbots/:id`
-- `POST /api/v1/flows`
-- `GET /api/v1/flows`
-- `GET /api/v1/flows/:id`
-- `PUT /api/v1/flows/:id`
-- `DELETE /api/v1/flows/:id`
-- `POST /api/v1/flows/:flowId/nodes`
-- `GET /api/v1/flows/:flowId/nodes`
-- `POST /api/v1/flows/:flowId/edges`
-- `GET /api/v1/flows/:flowId/edges`
-- `POST /api/v1/webhook/whatsapp`
-
-`GET /health` continua independente do banco.
-
-## Exemplos de teste com curl
-
-Health:
-
-```bash
-curl http://localhost:3001/health
+```json
+{
+  "data": {}
+}
 ```
 
-Criar chatbot:
+Listas:
 
-```bash
-curl -X POST http://localhost:3001/api/v1/chatbots \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Atendimento","organization_id":"org-001","type":"whatsapp"}'
+```json
+{
+  "data": [],
+  "total": 0
+}
 ```
 
-Listar chatbots:
+Erros:
 
-```bash
-curl http://localhost:3001/api/v1/chatbots
-```
-
-Criar fluxo:
-
-```bash
-curl -X POST http://localhost:3001/api/v1/flows \
-  -H "Content-Type: application/json" \
-  -d '{"chatbot_id":"COLE_AQUI_O_ID_DO_CHATBOT","name":"Fluxo de vendas"}'
-```
-
-Criar node:
-
-```bash
-curl -X POST http://localhost:3001/api/v1/flows/COLE_AQUI_O_ID_DO_FLOW/nodes \
-  -H "Content-Type: application/json" \
-  -d '{"type":"message","data":{"text":"Ola, como posso ajudar?"},"position_x":100,"position_y":200}'
-```
-
-Criar edge:
-
-```bash
-curl -X POST http://localhost:3001/api/v1/flows/COLE_AQUI_O_ID_DO_FLOW/edges \
-  -H "Content-Type: application/json" \
-  -d '{"source_node_id":"ID_DO_NO_ORIGEM","target_node_id":"ID_DO_NO_DESTINO","condition_type":"equals","condition_value":"comprar"}'
-```
-
-Webhook fake:
-
-```bash
-curl -X POST http://localhost:3001/api/v1/webhook/whatsapp \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"79999999999","message":"Quero comprar","chatbot_id":"COLE_AQUI_O_ID_DO_CHATBOT"}'
+```json
+{
+  "error": {
+    "message": "Mensagem simples",
+    "code": "VALIDATION_ERROR"
+  }
+}
 ```
 
 ## Limitacoes atuais
 
-- ainda nao existe autenticacao;
-- o motor de fluxo continua experimental;
-- nao existe integracao real com WhatsApp ou EvolutionAPI;
-- nao existe modulo real de IA ou RAG;
-- os testes ainda sao manuais;
-- sem PostgreSQL configurado localmente, as rotas de negocio retornam erro claro pedindo `DATABASE_URL`.
+- armazenamento em memoria
+- fluxo ainda simples
+- webhook apenas simulado
+- IA apenas simulada
+- sem login e sem permissoes
 
 ## Proximos passos
 
-- autenticacao;
-- execucao real do motor de fluxo;
-- integracao com EvolutionAPI;
-- modulo inicial de IA/RAG;
-- logs e metricas;
-- testes automatizados.
+- persistir em PostgreSQL
+- adicionar autenticacao
+- melhorar o motor de fluxo
+- integrar com frontend
+- conectar WhatsApp e IA de verdade
