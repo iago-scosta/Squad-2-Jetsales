@@ -1,8 +1,8 @@
-function createHttpError(statusCode, message) {
+function createHttpError(statusCode, message, code) {
   const error = new Error(message);
 
   error.statusCode = statusCode;
-  error.expose = true;
+  error.code = code;
 
   return error;
 }

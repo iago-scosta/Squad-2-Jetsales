@@ -1,11 +1,12 @@
 const createHttpError = require("./http-error");
 
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function validationError(message) {
+  return createHttpError(400, message, "VALIDATION_ERROR");
+}
 
 function validateRequiredText(value, fieldName) {
   if (typeof value !== "string" || !value.trim()) {
-    throw createHttpError(400, `${fieldName} e obrigatorio`);
+    throw validationError(`${fieldName} e obrigatorio`);
   }
 
   return value.trim();
@@ -19,14 +20,24 @@ function validateOptionalText(value, fieldName) {
   return validateRequiredText(value, fieldName);
 }
 
-function validateRequiredUuid(value, fieldName) {
+function validateRequiredEnum(value, allowedValues, fieldName) {
   const text = validateRequiredText(value, fieldName);
 
-  if (!uuidPattern.test(text)) {
-    throw createHttpError(400, `${fieldName} invalido`);
+  if (!allowedValues.includes(text)) {
+    throw validationError(
+      `${fieldName} precisa ser um destes valores: ${allowedValues.join(", ")}`
+    );
   }
 
   return text;
+}
+
+function validateOptionalEnum(value, allowedValues, fieldName) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return validateRequiredEnum(value, allowedValues, fieldName);
 }
 
 function validateOptionalBoolean(value, fieldName) {
@@ -35,7 +46,7 @@ function validateOptionalBoolean(value, fieldName) {
   }
 
   if (typeof value !== "boolean") {
-    throw createHttpError(400, `${fieldName} precisa ser booleano`);
+    throw validationError(`${fieldName} precisa ser booleano`);
   }
 
   return value;
@@ -43,10 +54,18 @@ function validateOptionalBoolean(value, fieldName) {
 
 function validateRequiredObject(value, fieldName) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw createHttpError(400, `${fieldName} e obrigatorio`);
+    throw validationError(`${fieldName} e obrigatorio`);
   }
 
   return value;
+}
+
+function validateOptionalObject(value, fieldName, defaultValue = undefined) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  return validateRequiredObject(value, fieldName);
 }
 
 function validateOptionalInteger(value, fieldName, defaultValue) {
@@ -55,17 +74,25 @@ function validateOptionalInteger(value, fieldName, defaultValue) {
   }
 
   if (!Number.isInteger(value)) {
-    throw createHttpError(400, `${fieldName} precisa ser numerico`);
+    throw validationError(`${fieldName} precisa ser numerico`);
   }
 
   return value;
 }
 
+function validateRequiredId(value, fieldName) {
+  return validateRequiredText(value, fieldName);
+}
+
 module.exports = {
   validateRequiredText,
   validateOptionalText,
-  validateRequiredUuid,
+  validateRequiredEnum,
+  validateOptionalEnum,
   validateOptionalBoolean,
   validateRequiredObject,
+  validateOptionalObject,
   validateOptionalInteger,
+  validateRequiredId,
+  validationError,
 };

@@ -1,12 +1,12 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "Backend inicial do JetGO",
-  "main": "src/app.js",
+  "description": "Backend academico do JetGO com armazenamento em memoria",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/app.js",
-    "start": "node src/app.js",
-    "db:migrate": "node src/database/run-migrations.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
@@ -14,10 +14,10 @@
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "pg": "^8.16.3"
+    "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.1"
   }
 }
