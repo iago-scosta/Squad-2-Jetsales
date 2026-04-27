@@ -1,16 +1,5 @@
-const router = require('express').Router();
+const express = require("express");
 
-router.post('/', (req, res) => {
-  const { name, organization_id } = req.body;
-
-  // mock por enquanto
-  const chatbot = {
-    id: crypto.randomUUID(),
-    name,
-    organization_id
-  };
-
-  res.json(chatbot);
-});
+const router = express.Router();
 
 module.exports = router;

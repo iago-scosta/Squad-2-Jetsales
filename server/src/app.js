@@ -1,39 +1,34 @@
-// server/src/app.js
+const cors = require("cors");
+const dotenv = require("dotenv");
+const express = require("express");
+const errorMiddleware = require("./middlewares/error.middleware");
+const notFoundMiddleware = require("./middlewares/not-found.middleware");
+const routes = require("./routes");
 
-const express = require('express');
+dotenv.config();
+
 const app = express();
 
-// Middlewares
 app.use(express.json());
+app.use(cors());
 
-// Health check
-app.get('/', (req, res) => {
-  res.send('API is running');
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "jetsales-backend",
+  });
 });
 
-// Routes
-try {
-  const routes = require('./routes');
-  app.use('/api', routes);
-} catch (err) {
-  console.warn('⚠️ routes/index.js not ready yet');
+app.use("/api/v1", routes);
+app.use(notFoundMiddleware);
+app.use(errorMiddleware);
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3001;
+
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
 }
 
-// so carrega o modulo de fluxo se ele estiver pronto, para evitar erros de dependência circular
-try {
-  const flowRoutes = require('./modules/flow/flow.routes');
-
-  if (typeof flowRoutes === 'function') {
-    app.use('/api/flow', flowRoutes);
-  } else {
-    console.warn('⚠️ flow.routes.js does not export a router');
-  }
-} catch (err) {
-  console.warn('⚠️ flow.routes.js not ready yet');
-}
-
-// Start server
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+module.exports = app;
