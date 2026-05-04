@@ -1,4 +1,7 @@
 {
+
+    //ARQUIVO DE CONFIGURAÇÃO DO TYPESCRIPT PARA O PROJETO CLIENT
+    //RODANDO COM O REACT 18, VITEST E VITE
   "compilerOptions": {
     "types": ["vitest/globals"],
     "target": "ES2020",

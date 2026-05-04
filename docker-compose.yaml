@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: jetsales_postgres
+    restart: always
+    environment:
+    # mudar depois
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jetsales
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./server
+    container_name: jetsales_backend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    env_file:
+      - ./server/.env.docker
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

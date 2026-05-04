@@ -6,6 +6,7 @@ import {flow} from './flow.model.js';
 import flowEngine from './flow.engine.js';
 
 const app = express();
+const PORT = process.env.PORT || 3001;
 app.use(bodyParser.json());
 
 const engine = new flowEngine(flow);
@@ -43,8 +44,8 @@ app.post("/chat", async(req, res) => {
     }
 });
 
-app.listen(3000, () => {
-    console.log("Servidor rodando na porta 3000");
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
 
  
