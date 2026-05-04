@@ -19,7 +19,7 @@ services:
     build: ./server
     container_name: jetsales_backend
     ports:
-      - "3000:3000"
+      - "3001:3001"
     depends_on:
       - postgres
     env_file:
