@@ -1,5 +1,9 @@
 {
+  
   "compilerOptions": {
+
+    //adicionei essa linha para o vitest reconhecer os tipos globais
+    "baseUrl": ".",
     "types": ["vitest/globals"],
     "target": "ES2020",
     "useDefineForClassFields": true,
