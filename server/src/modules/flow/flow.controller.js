@@ -1,9 +1,9 @@
-const flowService = require('./flow.service');
+const flowservice = require('./flow.service');
 
 class FlowController {
   /**
    * Cria um novo fluxo
-   * POST /api/flows
+   * POST /api/flow
    */
   async createFlow(req, res) {
     try {
@@ -17,7 +17,7 @@ class FlowController {
       }
 
       // Valida estrutura do fluxo
-      const validation = flowService.validateFlow({
+      const validation = flowservice.validateFlow({
         name,
         description,
         states: states || [],
@@ -31,7 +31,7 @@ class FlowController {
         });
       }
 
-      const flow = await flowService.createFlow({
+      const flow = await flowservice.createFlow({
         name,
         description,
         states,
@@ -51,13 +51,13 @@ class FlowController {
 
   /**
    * Obtém um fluxo pelo ID
-   * GET /api/flows/:flowId
+   * GET /api/flow/:flowId
    */
   async getFlow(req, res) {
     try {
       const { flowId } = req.params;
 
-      const flow = await flowService.getFlow(flowId);
+      const flow = await flowservice.getFlow(flowId);
 
       res.json({
         success: true,
@@ -72,11 +72,11 @@ class FlowController {
 
   /**
    * Lista todos os fluxos
-   * GET /api/flows
+   * GET /api/flow
    */
-  async listFlows(req, res) {
+  async listflows(req, res) {
     try {
-      const flows = await flowService.listFlows();
+      const flows = await flowservice.listflows();
 
       res.json({
         success: true,
@@ -92,7 +92,7 @@ class FlowController {
 
   /**
    * Atualiza um fluxo
-   * PUT /api/flows/:flowId
+   * PUT /api/flow/:flowId
    */
   async updateFlow(req, res) {
     try {
@@ -101,8 +101,8 @@ class FlowController {
 
       // Valida estrutura do fluxo atualizado se states/edges forem fornecidos
       if (states || edges) {
-        const currentFlow = await flowService.getFlow(flowId);
-        const validation = flowService.validateFlow({
+        const currentFlow = await flowservice.getFlow(flowId);
+        const validation = flowservice.validateFlow({
           name: name || currentFlow.name,
           description: description || currentFlow.description,
           states: states || currentFlow.states,
@@ -124,7 +124,7 @@ class FlowController {
       if (edges !== undefined) updates.edges = edges;
       if (active !== undefined) updates.active = active;
 
-      const flow = await flowService.updateFlow(flowId, updates);
+      const flow = await flowservice.updateFlow(flowId, updates);
 
       res.json({
         success: true,
@@ -139,13 +139,13 @@ class FlowController {
 
   /**
    * Deleta um fluxo
-   * DELETE /api/flows/:flowId
+   * DELETE /api/flow/:flowId
    */
   async deleteFlow(req, res) {
     try {
       const { flowId } = req.params;
 
-      await flowService.deleteFlow(flowId);
+      await flowservice.deleteFlow(flowId);
 
       res.json({
         success: true,
@@ -160,7 +160,7 @@ class FlowController {
 
   /**
    * Inicia uma sessão de fluxo
-   * POST /api/flows/:flowId/sessions
+   * POST /api/flow/:flowId/sessions
    */
   async startSession(req, res) {
     try {
@@ -173,7 +173,7 @@ class FlowController {
         });
       }
 
-      const session = await flowService.startFlowSession(flowId, userId);
+      const session = await flowservice.startflowsession(flowId, userId);
 
       res.status(201).json({
         success: true,
@@ -188,7 +188,7 @@ class FlowController {
 
   /**
    * Processa uma entrada de usuário em uma sessão
-   * POST /api/flows/sessions/:sessionId/input
+   * POST /api/flow/sessions/:sessionId/input
    */
   async processInput(req, res) {
     try {
@@ -201,7 +201,7 @@ class FlowController {
         });
       }
 
-      const result = await flowService.processFlowInput(sessionId, input);
+      const result = await flowservice.processFlowInput(sessionId, input);
 
       res.json({
         success: true,
@@ -216,13 +216,13 @@ class FlowController {
 
   /**
    * Obtém informações de uma sessão
-   * GET /api/flows/sessions/:sessionId
+   * GET /api/flow/sessions/:sessionId
    */
   async getSession(req, res) {
     try {
       const { sessionId } = req.params;
 
-      const session = await flowService.getFlowSession(sessionId);
+      const session = await flowservice.getflowsession(sessionId);
 
       res.json({
         success: true,
@@ -237,13 +237,13 @@ class FlowController {
 
   /**
    * Encerra uma sessão
-   * POST /api/flows/sessions/:sessionId/end
+   * POST /api/flow/sessions/:sessionId/end
    */
   async endSession(req, res) {
     try {
       const { sessionId } = req.params;
 
-      const session = await flowService.endFlowSession(sessionId);
+      const session = await flowservice.endflowsession(sessionId);
 
       res.json({
         success: true,
@@ -258,13 +258,13 @@ class FlowController {
 
   /**
    * Obtém estatísticas de uma sessão
-   * GET /api/flows/sessions/:sessionId/stats
+   * GET /api/flow/sessions/:sessionId/stats
    */
   async getSessionStats(req, res) {
     try {
       const { sessionId } = req.params;
 
-      const stats = await flowService.getSessionStats(sessionId);
+      const stats = await flowservice.getSessionStats(sessionId);
 
       res.json({
         success: true,
@@ -279,13 +279,13 @@ class FlowController {
 
   /**
    * Valida um fluxo
-   * POST /api/flows/validate
+   * POST /api/flow/validate
    */
   async validateFlow(req, res) {
     try {
       const { name, description, states, edges } = req.body;
 
-      const validation = flowService.validateFlow({
+      const validation = flowservice.validateFlow({
         name,
         description,
         states,
