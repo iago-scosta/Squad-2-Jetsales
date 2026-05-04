@@ -1,8 +1,9 @@
 {
-
-    //ARQUIVO DE CONFIGURAÇÃO DO TYPESCRIPT PARA O PROJETO CLIENT
-    //RODANDO COM O REACT 18, VITEST E VITE
+  
   "compilerOptions": {
+
+    //adicionei essa linha para o vitest reconhecer os tipos globais
+    "baseUrl": ".",
     "types": ["vitest/globals"],
     "target": "ES2020",
     "useDefineForClassFields": true,
