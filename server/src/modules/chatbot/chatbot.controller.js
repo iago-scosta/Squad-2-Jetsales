@@ -1,61 +1,26 @@
-const service = require('./chatbot.service');
+// server/src/modules/chatbot/chatbot.controller.js
+//
+// ⚠️ Implementação anterior usava Mongoose (incompatível com a stack atual de
+// Postgres + knex). Neutralizada até a Fase 1 (refator usando knex).
+// Mantém handlers que respondem 501 — assim a rota é descoberta pelo front e
+// fica clara no log o que falta entregar.
 
-//post
-exports.create = async (req, res) => {
-  try {
-    const chatbot = await service.create(req.body);
-    res.status(201).json(chatbot);
+function notImplemented(action) {
+  return (req, res) => {
+    res.status(501).json({
+      error: `chatbot.${action} ainda não migrado para knex`,
+      code: 'NOT_IMPLEMENTED',
+    });
+  };
+}
 
-    } catch (err) {
-    res.status(500).json({ error: err.message });
-    }
-};
-
-//get all
-exports.findAll = async (req, res) => {
-  try {
-    const chatbots = await service.findAll();
-    res.json(chatbots);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-//get by id
-exports.findOne = async (req, res) => {
-  try {
-    const chatbot = await service.findOne(req.params.id);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
-    res.json(chatbot);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-//put
-exports.update = async (req, res) => {
-  try {
-    const chatbot = await service.update(req.params.id, req.body);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
-    res.json(chatbot);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-    
-//delete
-exports.remove = async (req, res) => {
-  try {
-    const chatbot = await service.remove(req.params.id);
-    if (!chatbot) {
-      return res.status(404).json({ error: 'Chatbot not found' });
-    }
-    res.json({ message: 'Chatbot deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+exports.create = notImplemented('create');
+exports.findAll = notImplemented('findAll');
+exports.findOne = notImplemented('findOne');
+exports.update = notImplemented('update');
+exports.remove = notImplemented('remove');
+exports.duplicate = notImplemented('duplicate');
+exports.activate = notImplemented('activate');
+exports.deactivate = notImplemented('deactivate');
+exports.aiGenerate = notImplemented('aiGenerate');
+exports.aiAdjust = notImplemented('aiAdjust');

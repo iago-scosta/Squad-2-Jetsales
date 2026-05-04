@@ -1,74 +1,29 @@
+// server/src/modules/flow/flow.routes.js
+//
+// Contrato esperado pelo front (client/src/lib/api/flows.ts):
+//   GET    /flows/:id                -> FlowWithGraph
+//   PATCH  /flows/:id                -> Flow
+//   POST   /flows/:id/publish        -> Flow
+//   POST   /flows/:id/bulk-update    -> { ok: true }
+//
+// O serviço in-memory antigo (states+edges) NÃO bate com esse contrato e
+// permanece em flow.service.js apenas para o runtime do FlowEngine.
+// Stubs 501 abaixo até a Fase 1 (refator knex).
+
 const router = require('express').Router();
-const flowController = require('./flow.controller');
 
-// ===== FLUXOS =====
+function notImplemented(action) {
+  return (req, res) => {
+    res.status(501).json({
+      error: `flows.${action} pendente — refator knex (Fase 1)`,
+      code: 'NOT_IMPLEMENTED',
+    });
+  };
+}
 
-/**
- * Criar novo fluxo
- * POST /api/flows
- */
-router.post('/', (req, res) => flowController.createFlow(req, res));
-
-/**
- * Listar todos os fluxos
- * GET /api/flows
- */
-router.get('/', (req, res) => flowController.listFlows(req, res));
-
-/**
- * Validar estrutura de um fluxo
- * POST /api/flows/validate
- */
-router.post('/validate', (req, res) => flowController.validateFlow(req, res));
-
-/**
- * Obter um fluxo pelo ID
- * GET /api/flows/:flowId
- */
-router.get('/:flowId', (req, res) => flowController.getFlow(req, res));
-
-/**
- * Atualizar um fluxo
- * PUT /api/flows/:flowId
- */
-router.put('/:flowId', (req, res) => flowController.updateFlow(req, res));
-
-/**
- * Deletar um fluxo
- * DELETE /api/flows/:flowId
- */
-router.delete('/:flowId', (req, res) => flowController.deleteFlow(req, res));
-
-// ===== SESSÕES DE FLUXO =====
-
-/**
- * Iniciar uma sessão de fluxo
- * POST /api/flows/:flowId/sessions
- */
-router.post('/:flowId/sessions', (req, res) => flowController.startSession(req, res));
-
-/**
- * Processar entrada de usuário em uma sessão
- * POST /api/flows/sessions/:sessionId/input
- */
-router.post('/sessions/:sessionId/input', (req, res) => flowController.processInput(req, res));
-
-/**
- * Obter informações de uma sessão
- * GET /api/flows/sessions/:sessionId
- */
-router.get('/sessions/:sessionId', (req, res) => flowController.getSession(req, res));
-
-/**
- * Obter estatísticas de uma sessão
- * GET /api/flows/sessions/:sessionId/stats
- */
-router.get('/sessions/:sessionId/stats', (req, res) => flowController.getSessionStats(req, res));
-
-/**
- * Encerrar uma sessão
- * POST /api/flows/sessions/:sessionId/end
- */
-router.post('/sessions/:sessionId/end', (req, res) => flowController.endSession(req, res));
+router.get('/:id', notImplemented('get'));
+router.patch('/:id', notImplemented('update'));
+router.post('/:id/publish', notImplemented('publish'));
+router.post('/:id/bulk-update', notImplemented('bulkUpdate'));
 
 module.exports = router;
