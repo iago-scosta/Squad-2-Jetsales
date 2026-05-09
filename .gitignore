@@ -1,3 +1,6 @@
+# Claude Code worktrees & session data
+.claude/
+
 # Logs
 logs
 *.log
