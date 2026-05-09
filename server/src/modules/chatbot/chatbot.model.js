@@ -1,49 +1,14 @@
-const mongoose = require("mongoose");
+// server/src/modules/chatbot/chatbot.model.js
+//
+// ⚠️ Model anterior usava Mongoose. Schema agora vive na migration
+// 20260504_001_initial_schema.js (tabela `chatbots`).
+// Helpers de leitura/escrita virão com o refator do service na Fase 1.
 
-//schema do chatbot
-const chatbotSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    description: {
-      type: String,
-      default: "",
-    },
-    flowId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Flow",
-    },
-    knowledgeBaseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Knowledge",
-    },
-    knowledgeDocuments: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "KnowledgeDocument",
-      },
-    ],
-    settings: {
-      welcomeMessage: { type: String, default: "" },
-      defaultLanguage: { type: String, default: "pt-BR" },
-      typingEnabled: { type: Boolean, default: true },
-      voiceEnabled: { type: Boolean, default: false },
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
+const db = require('../../database');
 
-module.exports = mongoose.model("Chatbot", chatbotSchema);
+const TABLE = 'chatbots';
+
+module.exports = {
+  TABLE,
+  query: () => db(TABLE),
+};
