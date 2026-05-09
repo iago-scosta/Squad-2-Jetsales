@@ -76,7 +76,7 @@ class FlowController {
    */
   async listflows(req, res) {
     try {
-      const flows = await flowservice.listflows();
+      const flows = await flowservice.listFlows();
 
       res.json({
         success: true,
@@ -173,7 +173,7 @@ class FlowController {
         });
       }
 
-      const session = await flowservice.startflowsession(flowId, userId);
+      const session = await flowservice.startFlowSession(flowId, userId);
 
       res.status(201).json({
         success: true,
@@ -222,7 +222,7 @@ class FlowController {
     try {
       const { sessionId } = req.params;
 
-      const session = await flowservice.getflowsession(sessionId);
+      const session = await flowservice.getFlowSession(sessionId);
 
       res.json({
         success: true,
@@ -243,7 +243,7 @@ class FlowController {
     try {
       const { sessionId } = req.params;
 
-      const session = await flowservice.endflowsession(sessionId);
+      const session = await flowservice.endFlowSession(sessionId);
 
       res.json({
         success: true,

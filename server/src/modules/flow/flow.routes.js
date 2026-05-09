@@ -13,7 +13,7 @@ router.post('/', (req, res) => flowController.createFlow(req, res));
  * Listar todos os fluxos
  * GET /api/flow
  */
-router.get('/', (req, res) => flowController.listflow(req, res));
+router.get('/', (req, res) => flowController.listflows(req, res));
 
 /**
  * Validar estrutura de um fluxo
