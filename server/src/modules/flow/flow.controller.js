@@ -1,307 +1,124 @@
-const flowservice = require('./flow.service');
+// server/src/modules/flow/flow.controller.js
+//
+// Camada fina sobre flow.service. authRequired já roda em routes/index.js,
+// então aqui só lemos req.auth.organizationId, validamos input com zod e
+// delegamos. Falhas de validação propagam ZodError -> errorMiddleware.
 
-class FlowController {
-  /**
-   * Cria um novo fluxo
-   * POST /api/flow
-   */
-  async createFlow(req, res) {
-    try {
-      const { name, description, states, edges } = req.body;
+const service = require('./flow.service');
+const { httpError } = require('../../middlewares/error.middleware');
+const {
+  idParam,
+  updateFlowBody,
+  bulkUpdateBody,
+  createNodeBody,
+  updateNodeBody,
+  createEdgeBody,
+} = require('./flow.schemas');
 
-      // Valida dados de entrada
-      if (!name || name.trim() === '') {
-        return res.status(400).json({ 
-          error: 'Nome do fluxo é obrigatório' 
-        });
-      }
+/* ============================================================ */
+/*  /flows                                                       */
+/* ============================================================ */
 
-      // Valida estrutura do fluxo
-      const validation = flowservice.validateFlow({
-        name,
-        description,
-        states: states || [],
-        edges: edges || []
-      });
-
-      if (!validation.valid) {
-        return res.status(400).json({ 
-          error: 'Fluxo inválido',
-          details: validation.errors 
-        });
-      }
-
-      const flow = await flowservice.createFlow({
-        name,
-        description,
-        states,
-        edges
-      });
-
-      res.status(201).json({
-        success: true,
-        data: flow
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.getFlow = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const result = await service.getFlowWithGraph(req.auth.organizationId, id);
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Obtém um fluxo pelo ID
-   * GET /api/flow/:flowId
-   */
-  async getFlow(req, res) {
-    try {
-      const { flowId } = req.params;
-
-      const flow = await flowservice.getFlow(flowId);
-
-      res.json({
-        success: true,
-        data: flow
-      });
-    } catch (error) {
-      res.status(404).json({ 
-        error: error.message 
-      });
+exports.updateFlow = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const body = updateFlowBody.parse(req.body ?? {});
+    if (Object.keys(body).length === 0) {
+      throw httpError(400, 'No fields to update', 'VALIDATION_ERROR');
     }
+    const result = await service.updateFlow(req.auth.organizationId, id, body);
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Lista todos os fluxos
-   * GET /api/flow
-   */
-  async listflows(req, res) {
-    try {
-      const flows = await flowservice.listFlows();
-
-      res.json({
-        success: true,
-        data: flows,
-        count: flows.length
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.publishFlow = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const result = await service.publishFlow(req.auth.organizationId, id);
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Atualiza um fluxo
-   * PUT /api/flow/:flowId
-   */
-  async updateFlow(req, res) {
-    try {
-      const { flowId } = req.params;
-      const { name, description, states, edges, active } = req.body;
-
-      // Valida estrutura do fluxo atualizado se states/edges forem fornecidos
-      if (states || edges) {
-        const currentFlow = await flowservice.getFlow(flowId);
-        const validation = flowservice.validateFlow({
-          name: name || currentFlow.name,
-          description: description || currentFlow.description,
-          states: states || currentFlow.states,
-          edges: edges || currentFlow.edges
-        });
-
-        if (!validation.valid) {
-          return res.status(400).json({ 
-            error: 'Fluxo inválido',
-            details: validation.errors 
-          });
-        }
-      }
-
-      const updates = {};
-      if (name !== undefined) updates.name = name;
-      if (description !== undefined) updates.description = description;
-      if (states !== undefined) updates.states = states;
-      if (edges !== undefined) updates.edges = edges;
-      if (active !== undefined) updates.active = active;
-
-      const flow = await flowservice.updateFlow(flowId, updates);
-
-      res.json({
-        success: true,
-        data: flow
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.bulkUpdateFlow = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const body = bulkUpdateBody.parse(req.body ?? {});
+    const result = await service.bulkUpdateFlow(req.auth.organizationId, id, body);
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Deleta um fluxo
-   * DELETE /api/flow/:flowId
-   */
-  async deleteFlow(req, res) {
-    try {
-      const { flowId } = req.params;
+/* ============================================================ */
+/*  /flow-nodes                                                  */
+/* ============================================================ */
 
-      await flowservice.deleteFlow(flowId);
-
-      res.json({
-        success: true,
-        message: 'Fluxo deletado com sucesso'
-      });
-    } catch (error) {
-      res.status(404).json({ 
-        error: error.message 
-      });
-    }
+exports.createNode = async (req, res, next) => {
+  try {
+    const body = createNodeBody.parse(req.body ?? {});
+    const row = await service.createNode(req.auth.organizationId, body);
+    res.status(201).json(row);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Inicia uma sessão de fluxo
-   * POST /api/flow/:flowId/sessions
-   */
-  async startSession(req, res) {
-    try {
-      const { flowId } = req.params;
-      const { userId } = req.body;
-
-      if (!userId) {
-        return res.status(400).json({ 
-          error: 'ID do usuário é obrigatório' 
-        });
-      }
-
-      const session = await flowservice.startFlowSession(flowId, userId);
-
-      res.status(201).json({
-        success: true,
-        data: session
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.updateNode = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    const body = updateNodeBody.parse(req.body ?? {});
+    const row = await service.updateNode(req.auth.organizationId, id, body);
+    res.json(row);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Processa uma entrada de usuário em uma sessão
-   * POST /api/flow/sessions/:sessionId/input
-   */
-  async processInput(req, res) {
-    try {
-      const { sessionId } = req.params;
-      const { input } = req.body;
-
-      if (input === undefined || input === null) {
-        return res.status(400).json({ 
-          error: 'Input do usuário é obrigatório' 
-        });
-      }
-
-      const result = await flowservice.processFlowInput(sessionId, input);
-
-      res.json({
-        success: true,
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.deleteNode = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    await service.deleteNode(req.auth.organizationId, id);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Obtém informações de uma sessão
-   * GET /api/flow/sessions/:sessionId
-   */
-  async getSession(req, res) {
-    try {
-      const { sessionId } = req.params;
+/* ============================================================ */
+/*  /flow-edges                                                  */
+/* ============================================================ */
 
-      const session = await flowservice.getFlowSession(sessionId);
-
-      res.json({
-        success: true,
-        data: session
-      });
-    } catch (error) {
-      res.status(404).json({ 
-        error: error.message 
-      });
-    }
+exports.createEdge = async (req, res, next) => {
+  try {
+    const body = createEdgeBody.parse(req.body ?? {});
+    const row = await service.createEdge(req.auth.organizationId, body);
+    res.status(201).json(row);
+  } catch (err) {
+    next(err);
   }
+};
 
-  /**
-   * Encerra uma sessão
-   * POST /api/flow/sessions/:sessionId/end
-   */
-  async endSession(req, res) {
-    try {
-      const { sessionId } = req.params;
-
-      const session = await flowservice.endFlowSession(sessionId);
-
-      res.json({
-        success: true,
-        data: session
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
+exports.deleteEdge = async (req, res, next) => {
+  try {
+    const { id } = idParam.parse(req.params);
+    await service.deleteEdge(req.auth.organizationId, id);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
   }
-
-  /**
-   * Obtém estatísticas de uma sessão
-   * GET /api/flow/sessions/:sessionId/stats
-   */
-  async getSessionStats(req, res) {
-    try {
-      const { sessionId } = req.params;
-
-      const stats = await flowservice.getSessionStats(sessionId);
-
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
-  }
-
-  /**
-   * Valida um fluxo
-   * POST /api/flow/validate
-   */
-  async validateFlow(req, res) {
-    try {
-      const { name, description, states, edges } = req.body;
-
-      const validation = flowservice.validateFlow({
-        name,
-        description,
-        states,
-        edges
-      });
-
-      res.json({
-        success: true,
-        data: validation
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error.message 
-      });
-    }
-  }
-}
-
-module.exports = new FlowController();
+};

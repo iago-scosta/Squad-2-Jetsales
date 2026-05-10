@@ -8,7 +8,7 @@
 //      POST   /flows/:id/publish        -> Flow
 //      POST   /flows/:id/bulk-update    -> { ok: true }
 //
-//    Esses ainda dependem do refator knex (Fase 1) — respondem 501 por enquanto.
+//    Implementado pelo flow.controller (DB-backed via knex).
 //
 // 2. RUNTIME / INTERNO (executor in-memory do FlowEngine, mantido pela squad):
 //      POST   /flows/runtime               -> cria fluxo em memória
@@ -23,51 +23,42 @@
 //      GET    /flows/runtime/sessions/:sessionId/stats
 //      POST   /flows/runtime/sessions/:sessionId/end
 //
-//    Eles são usados pelo motor de execução do chatbot (consumido pelo
-//    webhook handler da EvolutionAPI), não pelo editor visual.
-//    Ao migrar para knex na Fase 1, este sub-router será absorvido pelo
-//    flow.service definitivo.
+//    Implementado pelo flow.runtime.controller (in-memory).
 
 const router = require('express').Router();
-const flowController = require('./flow.controller');
+const c = require('./flow.controller');
+const runtimeController = require('./flow.runtime.controller');
+
+/* ============================================================ */
+/*  RUNTIME INTERNO — FlowEngine in-memory mantido pela squad     */
+/*  (declarado antes para não colidir com /:id do contrato       */
+/*   público)                                                     */
+/* ============================================================ */
+
+// ----- Fluxos -----
+
+router.post('/runtime', (req, res) => runtimeController.createFlow(req, res));
+router.get('/runtime', (req, res) => runtimeController.listflows(req, res));
+router.post('/runtime/validate', (req, res) => runtimeController.validateFlow(req, res));
+router.get('/runtime/:flowId', (req, res) => runtimeController.getFlow(req, res));
+router.put('/runtime/:flowId', (req, res) => runtimeController.updateFlow(req, res));
+router.delete('/runtime/:flowId', (req, res) => runtimeController.deleteFlow(req, res));
+
+// ----- Sessões do FlowEngine -----
+
+router.post('/runtime/:flowId/sessions', (req, res) => runtimeController.startSession(req, res));
+router.post('/runtime/sessions/:sessionId/input', (req, res) => runtimeController.processInput(req, res));
+router.get('/runtime/sessions/:sessionId', (req, res) => runtimeController.getSession(req, res));
+router.get('/runtime/sessions/:sessionId/stats', (req, res) => runtimeController.getSessionStats(req, res));
+router.post('/runtime/sessions/:sessionId/end', (req, res) => runtimeController.endSession(req, res));
 
 /* ============================================================ */
 /*  CONTRATO PÚBLICO — consumido pelo editor de fluxos do front  */
 /* ============================================================ */
 
-function notImplemented(action) {
-  return (req, res) => {
-    res.status(501).json({
-      error: `flows.${action} pendente — refator knex (Fase 1)`,
-      code: 'NOT_IMPLEMENTED',
-    });
-  };
-}
-
-router.get('/:id', notImplemented('get'));
-router.patch('/:id', notImplemented('update'));
-router.post('/:id/publish', notImplemented('publish'));
-router.post('/:id/bulk-update', notImplemented('bulkUpdate'));
-
-/* ============================================================ */
-/*  RUNTIME INTERNO — FlowEngine in-memory mantido pela squad     */
-/* ============================================================ */
-
-// ----- Fluxos -----
-
-router.post('/runtime', (req, res) => flowController.createFlow(req, res));
-router.get('/runtime', (req, res) => flowController.listflows(req, res));
-router.post('/runtime/validate', (req, res) => flowController.validateFlow(req, res));
-router.get('/runtime/:flowId', (req, res) => flowController.getFlow(req, res));
-router.put('/runtime/:flowId', (req, res) => flowController.updateFlow(req, res));
-router.delete('/runtime/:flowId', (req, res) => flowController.deleteFlow(req, res));
-
-// ----- Sessões do FlowEngine -----
-
-router.post('/runtime/:flowId/sessions', (req, res) => flowController.startSession(req, res));
-router.post('/runtime/sessions/:sessionId/input', (req, res) => flowController.processInput(req, res));
-router.get('/runtime/sessions/:sessionId', (req, res) => flowController.getSession(req, res));
-router.get('/runtime/sessions/:sessionId/stats', (req, res) => flowController.getSessionStats(req, res));
-router.post('/runtime/sessions/:sessionId/end', (req, res) => flowController.endSession(req, res));
+router.get('/:id', c.getFlow);
+router.patch('/:id', c.updateFlow);
+router.post('/:id/publish', c.publishFlow);
+router.post('/:id/bulk-update', c.bulkUpdateFlow);
 
 module.exports = router;
