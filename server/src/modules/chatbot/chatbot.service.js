@@ -43,18 +43,45 @@ async function findById(organizationId, id) {
   return toApi(row);
 }
 
+/**
+ * Cria chatbot. Pra type='manual', cria também um flow draft vazio na mesma
+ * transação e setta active_flow_id apontando pra ele — sem isso o editor
+ * abre na tela "sem fluxo ativo" porque manual não tem caminho pra bootstrap
+ * do flow (ai_generated/ai_agent vão por aiGenerate na Fase 3).
+ */
 async function create(organizationId, userId, input) {
-  const [row] = await db(TABLE)
-    .insert({
-      organization_id: organizationId,
-      created_by: userId,
-      name: input.name,
-      description: input.description ?? '',
-      type: input.type,
-      is_active: true,
-    })
-    .returning('*');
-  return toApi(row);
+  return db.transaction(async (trx) => {
+    const [chatbot] = await trx(TABLE)
+      .insert({
+        organization_id: organizationId,
+        created_by: userId,
+        name: input.name,
+        description: input.description ?? '',
+        type: input.type,
+        is_active: true,
+      })
+      .returning('*');
+
+    if (input.type !== 'manual') {
+      return toApi(chatbot);
+    }
+
+    const [flow] = await trx('flows')
+      .insert({
+        chatbot_id: chatbot.id,
+        name: 'Fluxo principal',
+        status: 'draft',
+        version: 1,
+      })
+      .returning('*');
+
+    const [updated] = await trx(TABLE)
+      .where({ id: chatbot.id })
+      .update({ active_flow_id: flow.id, updated_at: trx.fn.now() })
+      .returning('*');
+
+    return toApi(updated);
+  });
 }
 
 async function update(organizationId, id, patch) {
