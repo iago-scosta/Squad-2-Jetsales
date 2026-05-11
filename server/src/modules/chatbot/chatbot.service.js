@@ -5,6 +5,7 @@
 // req.auth. Saída sempre passa por toApi() para casar com o contrato camelCase
 // do front (client/src/lib/api/chatbots.ts).
 
+const crypto = require('crypto');
 const db = require('../../database');
 
 const TABLE = 'chatbots';
@@ -75,22 +76,91 @@ async function remove(organizationId, id) {
   return count > 0;
 }
 
+/**
+ * Clone profundo: chatbot + flow ativo + nodes + edges, tudo numa transação.
+ * - Clone começa is_active=false e o flow clonado nasce em status='draft'.
+ * - Edges são remapeadas via idMap para apontar para os novos node ids.
+ * - Original sem active_flow_id => clone também sem (sem erro).
+ * - created_by recebe userId (quem duplicou), não o criador original.
+ */
 async function duplicate(organizationId, userId, id) {
-  const original = await db(TABLE).where({ id, organization_id: organizationId }).first();
-  if (!original) return null;
-  const [row] = await db(TABLE)
-    .insert({
-      organization_id: organizationId,
-      created_by: userId,
-      name: `${original.name} (cópia)`,
-      description: original.description,
-      type: original.type,
-      ai_config: original.ai_config,
-      is_active: false,
-      active_flow_id: null,
-    })
-    .returning('*');
-  return toApi(row);
+  return db.transaction(async (trx) => {
+    const original = await trx(TABLE)
+      .where({ id, organization_id: organizationId })
+      .first();
+    if (!original) return null;
+
+    const [cloneChatbot] = await trx(TABLE)
+      .insert({
+        organization_id: organizationId,
+        created_by: userId,
+        name: `${original.name} (cópia)`,
+        description: original.description,
+        type: original.type,
+        ai_config: original.ai_config,
+        is_active: false,
+        active_flow_id: null,
+      })
+      .returning('*');
+
+    if (!original.active_flow_id) {
+      return toApi(cloneChatbot);
+    }
+
+    const sourceFlow = await trx('flows')
+      .where({ id: original.active_flow_id })
+      .first();
+    if (!sourceFlow) {
+      return toApi(cloneChatbot);
+    }
+
+    const [cloneFlow] = await trx('flows')
+      .insert({
+        chatbot_id: cloneChatbot.id,
+        name: sourceFlow.name,
+        status: 'draft',
+        version: 1,
+      })
+      .returning('*');
+
+    const sourceNodes = await trx('flow_nodes').where({ flow_id: sourceFlow.id });
+    const idMap = new Map();
+    if (sourceNodes.length) {
+      const newNodeRows = sourceNodes.map((n) => {
+        const newId = crypto.randomUUID();
+        idMap.set(n.id, newId);
+        return {
+          id: newId,
+          flow_id: cloneFlow.id,
+          type: n.type,
+          data: n.data,
+          position_x: n.position_x,
+          position_y: n.position_y,
+        };
+      });
+      await trx('flow_nodes').insert(newNodeRows);
+    }
+
+    const sourceEdges = await trx('flow_edges').where({ flow_id: sourceFlow.id });
+    if (sourceEdges.length) {
+      const newEdgeRows = sourceEdges.map((e) => ({
+        flow_id: cloneFlow.id,
+        source_node_id: idMap.get(e.source_node_id),
+        target_node_id: idMap.get(e.target_node_id),
+        source_handle: e.source_handle,
+        condition_type: e.condition_type,
+        condition_value: e.condition_value,
+      }));
+      await trx('flow_edges').insert(newEdgeRows);
+    }
+
+    const [updatedClone] = await trx(TABLE)
+      .where({ id: cloneChatbot.id })
+      .update({ active_flow_id: cloneFlow.id, updated_at: trx.fn.now() })
+      .returning('*');
+
+    return toApi(updatedClone);
+  });
 }
 
 async function setActive(organizationId, id, isActive) {
