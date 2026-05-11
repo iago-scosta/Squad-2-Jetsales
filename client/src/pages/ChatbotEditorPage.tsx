@@ -201,6 +201,9 @@ const BLOCK_PALETTE: Array<{
   color: string;
   defaults: FlowNodeData;
 }> = [
+  // Trigger é o ponto de entrada do fluxo — o publish do back exige pelo menos
+  // um node tipo "trigger". Só pode existir um por fluxo (lock no onDrop).
+  { type: "trigger", label: "Início", icon: Zap, color: "hsl(var(--node-trigger))", defaults: {} },
   { type: "message", label: "Enviar Mensagem", icon: MessageSquare, color: "hsl(var(--node-message))", defaults: { text: "Olá!" } },
   { type: "menu", label: "Menu de Opções", icon: ListOrdered, color: "hsl(var(--node-menu))", defaults: { options: [{ id: crypto.randomUUID(), label: "Opção 1", value: "1" }] } },
   { type: "condition", label: "Condição", icon: GitBranch, color: "hsl(var(--node-condition))", defaults: { condition: { field: "input", operator: "==", value: "" } } },
@@ -401,6 +404,14 @@ function FlowCanvas({ flow, chatbotId }: { flow: FlowWithGraph; chatbotId: strin
       if (!type) return;
       const palette = BLOCK_PALETTE.find((p) => p.type === type);
       if (!palette) return;
+
+      // Só um trigger por fluxo: o back rejeita publish sem trigger e a UI
+      // proíbe edge entrando nele — dois triggers viraria um deles em órfão.
+      if (type === "trigger" && present.nodes.some((n) => (n.data as RFNodeData).domainType === "trigger")) {
+        toast.error("Este fluxo já tem um nó de Início");
+        return;
+      }
+
       const position = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const newNode: Node = {
         id: crypto.randomUUID(),
