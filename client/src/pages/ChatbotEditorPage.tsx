@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Clock,
+  Flag,
   GitBranch,
   Loader2,
   ListOrdered,
@@ -184,12 +185,26 @@ function TriggerNode({ selected }: NodeProps) {
   );
 }
 
+function EndNode({ selected }: NodeProps) {
+  return (
+    <div className={cn("min-w-[180px] rounded-lg border-2 bg-card shadow-card overflow-hidden", selected ? "border-primary ring-2 ring-primary/20" : "border-border")}>
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+      <div className="flex items-center gap-2 px-3 py-2 text-white text-xs font-semibold" style={{ background: "hsl(var(--node-end))" }}>
+        <Flag className="h-3.5 w-3.5" />
+        <span className="flex-1 truncate">Fim</span>
+      </div>
+      <div className="px-3 py-2 text-xs text-muted-foreground">Encerra este caminho do fluxo</div>
+    </div>
+  );
+}
+
 const NODE_TYPES = {
   message: MessageNode,
   menu: MenuNode,
   condition: ConditionNode,
   wait: WaitNode,
   trigger: TriggerNode,
+  end: EndNode,
 };
 
 /* ------------------------------ Helpers --------------------------------- */
@@ -201,10 +216,17 @@ const BLOCK_PALETTE: Array<{
   color: string;
   defaults: FlowNodeData;
 }> = [
+  // Trigger é o ponto de entrada do fluxo — o publish do back exige pelo menos
+  // um node tipo "trigger". Só pode existir um por fluxo (lock no onDrop).
+  { type: "trigger", label: "Início", icon: Zap, color: "hsl(var(--node-trigger))", defaults: {} },
   { type: "message", label: "Enviar Mensagem", icon: MessageSquare, color: "hsl(var(--node-message))", defaults: { text: "Olá!" } },
   { type: "menu", label: "Menu de Opções", icon: ListOrdered, color: "hsl(var(--node-menu))", defaults: { options: [{ id: crypto.randomUUID(), label: "Opção 1", value: "1" }] } },
   { type: "condition", label: "Condição", icon: GitBranch, color: "hsl(var(--node-condition))", defaults: { condition: { field: "input", operator: "==", value: "" } } },
   { type: "wait", label: "Aguardar", icon: Clock, color: "hsl(var(--node-wait))", defaults: { waitMs: 1000 } },
+  // Fim encerra um caminho do fluxo. Múltiplos são válidos (um por ramo).
+  // validateFlow exige que todo node não-end tenha edge de saída — sem este
+  // card no toolbox o caminho manual ficava impublicável.
+  { type: "end", label: "Fim", icon: Flag, color: "hsl(var(--node-end))", defaults: {} },
 ];
 
 function toRFNode(n: FlowNode): Node {
@@ -401,6 +423,14 @@ function FlowCanvas({ flow, chatbotId }: { flow: FlowWithGraph; chatbotId: strin
       if (!type) return;
       const palette = BLOCK_PALETTE.find((p) => p.type === type);
       if (!palette) return;
+
+      // Só um trigger por fluxo: o back rejeita publish sem trigger e a UI
+      // proíbe edge entrando nele — dois triggers viraria um deles em órfão.
+      if (type === "trigger" && present.nodes.some((n) => (n.data as RFNodeData).domainType === "trigger")) {
+        toast.error("Este fluxo já tem um nó de Início");
+        return;
+      }
+
       const position = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const newNode: Node = {
         id: crypto.randomUUID(),
