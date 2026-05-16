@@ -1,117 +1,72 @@
-/**
- * Modelo de Nó (Estado) do Fluxo
- * Representa um ponto no fluxo de conversa
- */
+const db = require('../../database');
 
-const NODE_TYPES = {
-  MESSAGE: 'message',    // Envia uma mensagem ao usuário
-  INPUT: 'input',        // Recebe entrada do usuário
-  CHOICE: 'choice',      // Apresenta opções para escolher
-  API: 'api',            // Faz uma chamada à API
-  SET: 'set',            // Define valores no contexto
-  END: 'end',            // Encerra o fluxo
-  CONDITION: 'condition' // Avalia uma condição
+const TABLE = 'flow_nodes';
+
+// Todos os campos lógicos do node vão dentro do JSONB `data`
+// incluindo o `label` (id semântico), pois o banco não tem coluna label
+const normalizePayload = (data) => ({
+  flow_id: data.flow_id || data.flowId,
+  type: data.type,
+  data: {
+    label: data.label || data.id || null, // id semântico ("start", "ask_name"…)
+    message: data.message || null,
+    variable: data.variable || null,
+    options: data.options || null,
+    url: data.url || null,
+    saveAs: data.saveAs || data.save_as || null,
+    key: data.key || null,
+    value: data.value || null,
+    condition: data.condition || null,
+    delay: data.delay || 0,
+  },
+  position_x: data.position_x ?? data.positionX ?? 0,
+  position_y: data.position_y ?? data.positionY ?? 0,
+});
+
+// Expande `data` JSONB para primeiro nível para o FlowEngine continuar funcionando
+const expand = (node) => {
+  if (!node) return null;
+  const { data, ...rest } = node;
+  return { ...rest, ...(data || {}) };
 };
 
-class Node {
-  constructor(data) {
-    this.id = data.id;
-    this.type = data.type;
-    this.message = data.message || null;
-    this.variable = data.variable || null;
-    this.options = data.options || null;
-    this.delay = data.delay || 0;
-    this.url = data.url || null;
-    this.saveAs = data.saveAs || null;
-    this.key = data.key || null;
-    this.value = data.value || null;
-    this.condition = data.condition || null;
-  }
-
-  /**
-   * Valida se o nó tem todos os campos obrigatórios
-   * @returns {Object} { valid: boolean, errors: Array }
-   */
-  validate() {
-    const errors = [];
-
-    if (!this.id || this.id.trim() === '') {
-      errors.push('ID do nó é obrigatório');
-    }
-
-    if (!this.type || !Object.values(NODE_TYPES).includes(this.type)) {
-      errors.push(`Tipo de nó inválido: ${this.type}`);
-    }
-
-    switch (this.type) {
-      case NODE_TYPES.MESSAGE:
-        if (!this.message) {
-          errors.push('Nó MESSAGE deve ter um message');
-        }
-        break;
-
-      case NODE_TYPES.INPUT:
-        if (!this.variable) {
-          errors.push('Nó INPUT deve ter um variable');
-        }
-        break;
-
-      case NODE_TYPES.API:
-        if (!this.url) {
-          errors.push('Nó API deve ter um url');
-        }
-        if (!this.saveAs) {
-          errors.push('Nó API deve ter um saveAs');
-        }
-        break;
-
-      case NODE_TYPES.SET:
-        if (!this.key) {
-          errors.push('Nó SET deve ter um key');
-        }
-        break;
-
-      case NODE_TYPES.CHOICE:
-        if (!Array.isArray(this.options) || this.options.length === 0) {
-          errors.push('Nó CHOICE deve ter options');
-        }
-        break;
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Converte o nó para JSON
-   */
-  toJSON() {
-    return {
-      id: this.id,
-      type: this.type,
-      message: this.message,
-      variable: this.variable,
-      options: this.options,
-      delay: this.delay,
-      url: this.url,
-      saveAs: this.saveAs,
-      key: this.key,
-      value: this.value,
-      condition: this.condition
-    };
-  }
-
-  /**
-   * Cria uma instância de Node a partir de um objeto
-   */
-  static fromObject(data) {
-    return new Node(data);
-  }
-}
-
 module.exports = {
-  Node,
-  NODE_TYPES
+  create: async (nodeData) => {
+    const [node] = await db(TABLE).insert(normalizePayload(nodeData)).returning('*');
+    return expand(node);
+  },
+
+  createMany: async (nodes, trx) => {
+    if (!nodes || nodes.length === 0) return [];
+    const payloads = nodes.map(normalizePayload);
+    const q = (trx || db)(TABLE).insert(payloads).returning('*');
+    const created = await q;
+    return created.map(expand);
+  },
+
+  findByFlow: async (flowId) => {
+    const nodes = await db(TABLE).where({ flow_id: flowId }).orderBy('created_at', 'asc');
+    return nodes.map(expand);
+  },
+
+  findOne: async (id) => {
+    const node = await db(TABLE).where({ id }).first();
+    return expand(node);
+  },
+
+  update: async (id, nodeData) => {
+    const [node] = await db(TABLE)
+      .where({ id })
+      .update({ ...normalizePayload(nodeData), updated_at: db.fn.now() })
+      .returning('*');
+    return expand(node);
+  },
+
+  remove: async (id) => {
+    return await db(TABLE).where({ id }).del();
+  },
+
+  removeByFlow: async (flowId, trx) => {
+    return await (trx || db)(TABLE).where({ flow_id: flowId }).del();
+  },
 };

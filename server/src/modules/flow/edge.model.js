@@ -1,129 +1,64 @@
-/**
- * Modelo de Aresta (Edge) do Fluxo
- * Representa uma transição entre nós
- */
+const db = require('../../database');
 
-class Edge {
-  constructor(data) {
-    this.from = data.from;
-    this.to = data.to;
-    this.condition = data.condition || null;
-    this.label = data.label || null;
-  }
+const TABLE = 'flow_edges';
 
-  /**
-   * Valida se a aresta tem todos os campos obrigatórios
-   * @returns {Object} { valid: boolean, errors: Array }
-   */
-  validate() {
-    const errors = [];
+const normalizePayload = (data, flowId) => ({
+  flow_id: flowId || data.flow_id || data.flowId,
+  source_node_id: data.source_node_id || data.sourceNodeId || data.from,
+  target_node_id: data.target_node_id || data.targetNodeId || data.to,
+  source_handle: data.source_handle || data.sourceHandle || null,
+  condition_type: data.condition?.operator || data.condition_type || null,
+  condition_value: data.condition?.value != null
+    ? String(data.condition.value)
+    : data.condition_value || null,
+});
 
-    if (!this.from || this.from.trim() === '') {
-      errors.push('Campo "from" é obrigatório em Edge');
-    }
-
-    if (!this.to || this.to.trim() === '') {
-      errors.push('Campo "to" é obrigatório em Edge');
-    }
-
-    if (this.from === this.to) {
-      console.warn(`Aresta com mesmo nó de origem e destino: ${this.from}`);
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Avalia se a condição da aresta é atendida
-   * @param {*} input - Entrada do usuário
-   * @param {Object} context - Contexto da sessão
-   * @returns {boolean} True se a condição é atendida
-   */
-  evaluateCondition(input, context = {}) {
-    // Se não houver condição, sempre retorna true
-    if (!this.condition) {
-      return true;
-    }
-
-    // Se for uma função, executa com input e contexto
-    if (typeof this.condition === 'function') {
-      return this.condition(input, context);
-    }
-
-    // Se for string, compara com o input
-    if (typeof this.condition === 'string') {
-      if (input === null || input === undefined) {
-        return false;
-      }
-      return input.toString().toLowerCase().includes(this.condition.toLowerCase());
-    }
-
-    // Se for um objeto com operadores, avalia
-    if (typeof this.condition === 'object') {
-      return this.evaluateComplexCondition(this.condition, input, context);
-    }
-
-    return false;
-  }
-
-  /**
-   * Avalia condições complexas com operadores
-   * @param {Object} condition - Objeto com operadores
-   * @param {*} input - Entrada do usuário
-   * @param {Object} context - Contexto da sessão
-   * @returns {boolean}
-   */
-  evaluateComplexCondition(condition, input, context) {
-    // Exemplo: { operator: 'equals', value: 'sim' }
-    if (condition.operator && condition.value !== undefined) {
-      switch (condition.operator) {
-        case 'equals':
-          return input === condition.value;
-        case 'notEquals':
-          return input !== condition.value;
-        case 'includes':
-          return String(input).includes(String(condition.value));
-        case 'gt':
-          return Number(input) > Number(condition.value);
-        case 'lt':
-          return Number(input) < Number(condition.value);
-        case 'gte':
-          return Number(input) >= Number(condition.value);
-        case 'lte':
-          return Number(input) <= Number(condition.value);
-        case 'regex':
-          return new RegExp(condition.value).test(String(input));
-        default:
-          return false;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Converte a aresta para JSON
-   */
-  toJSON() {
-    return {
-      from: this.from,
-      to: this.to,
-      condition: this.condition,
-      label: this.label
-    };
-  }
-
-  /**
-   * Cria uma instância de Edge a partir de um objeto
-   */
-  static fromObject(data) {
-    return new Edge(data);
-  }
-}
+// Mapeia de volta para o formato { from, to, condition } do FlowEngine
+const toEngineFormat = (edge) => ({
+  ...edge,
+  from: edge.source_node_id,
+  to: edge.target_node_id,
+  condition: edge.condition_type
+    ? { operator: edge.condition_type, value: edge.condition_value }
+    : null,
+});
 
 module.exports = {
-  Edge
+  create: async (data, flowId) => {
+    const [edge] = await db(TABLE).insert(normalizePayload(data, flowId)).returning('*');
+    return toEngineFormat(edge);
+  },
+
+  createMany: async (edges, flowId, trx) => {
+    if (!edges || edges.length === 0) return [];
+    const payloads = edges.map((e) => normalizePayload(e, flowId));
+    const created = await (trx || db)(TABLE).insert(payloads).returning('*');
+    return created.map(toEngineFormat);
+  },
+
+  findByFlow: async (flowId) => {
+    const edges = await db(TABLE).where({ flow_id: flowId });
+    return edges.map(toEngineFormat);
+  },
+
+  findOne: async (id) => {
+    const edge = await db(TABLE).where({ id }).first();
+    return edge ? toEngineFormat(edge) : null;
+  },
+
+  update: async (id, data) => {
+    const [edge] = await db(TABLE)
+      .where({ id })
+      .update(normalizePayload(data))
+      .returning('*');
+    return toEngineFormat(edge);
+  },
+
+  remove: async (id) => {
+    return await db(TABLE).where({ id }).del();
+  },
+
+  removeByFlow: async (flowId, trx) => {
+    return await (trx || db)(TABLE).where({ flow_id: flowId }).del();
+  },
 };
