@@ -1,5 +1,6 @@
 const Chatbot = require('./chatbot.model');
 
+// Serviço de chatbots: encapsula a lógica de CRUD e delega para o modelo SQL
 exports.create = async (data) => {
   return await Chatbot.create(data);
 };
